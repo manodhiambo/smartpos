@@ -1,25 +1,14 @@
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { queryMain, transactionTenant } = require('../config/database');
 const Tenant = require('../models/Tenant');
-const User = require('../models/User');
+const subscriptionService = require('../services/subscriptionService');
 const { sendWelcomeEmail } = require('../config/email');
-const { generateRandomPassword } = require('../utils/helpers');
-const { queryMain } = require('../config/database');
 
 /**
- * Generate JWT token
+ * Register new tenant
  */
-const generateToken = (userId, tenantId) => {
-  return jwt.sign(
-    { userId, tenantId },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE }
-  );
-};
-
-/**
- * Register new tenant (store)
- */
-exports.registerTenant = async (req, res, next) => {
+exports.register = async (req, res) => {
   try {
     const {
       businessName,
@@ -29,22 +18,36 @@ exports.registerTenant = async (req, res, next) => {
       adminUsername,
       adminPassword,
       adminFullName,
+      adminEmail,
       mpesaTillNumber,
       mpesaPaybill,
       mpesaAccountNumber
     } = req.body;
 
-    // Check if email already exists
+    // Validate required fields
+    if (!businessName || !businessEmail || !adminUsername || !adminPassword || !adminFullName) {
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
+      });
+    }
+
+    // Check if business email already exists
     const existingTenant = await Tenant.findByEmail(businessEmail);
     if (existingTenant) {
-      return res.status(409).json({
+      return res.status(400).json({
         success: false,
         message: 'Business email already registered'
       });
     }
 
+    // Generate unique tenant schema name
+    const tenantSchema = `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
     // Create tenant
     const tenant = await Tenant.create({
+      tenantName: businessName,
+      tenantSchema,
       businessName,
       businessEmail,
       businessPhone,
@@ -54,36 +57,44 @@ exports.registerTenant = async (req, res, next) => {
       mpesaAccountNumber
     });
 
-    // Create tenant schema
-    await queryMain(`CREATE SCHEMA IF NOT EXISTS "${tenant.tenant_schema}"`);
+    // Create tenant schema and tables
+    await Tenant.createTenantSchema(tenantSchema);
 
-    // Create tenant tables
-    await createTenantTables(tenant.tenant_schema);
+    // Hash password
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-    // Create admin user
-    const adminUser = await User.create({
-      tenantId: tenant.id,
-      username: adminUsername,
-      password: adminPassword,
-      fullName: adminFullName,
-      email: businessEmail,
-      role: 'admin'
-    });
-
-    // Send welcome email
-    await sendWelcomeEmail(
-      businessEmail,
-      businessName,
-      adminUsername,
-      adminPassword
+    // Create admin user in public schema
+    const userResult = await queryMain(
+      `INSERT INTO public.tenant_users 
+        (tenant_id, username, password_hash, full_name, email, role, status)
+      VALUES ($1, $2, $3, $4, $5, 'admin', 'active')
+      RETURNING id, username, full_name, email, role`,
+      [tenant.id, adminUsername, passwordHash, adminFullName, adminEmail]
     );
 
-    // Generate token
-    const token = generateToken(adminUser.id, tenant.id);
+    const adminUser = userResult.rows[0];
+
+    // Start 30-day free trial
+    await subscriptionService.startTrial(tenant.id);
+
+    // Send welcome email
+    await sendWelcomeEmail(businessEmail, businessName, adminUsername, adminPassword);
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: adminUser.id,
+        username: adminUser.username,
+        tenantId: tenant.id,
+        role: adminUser.role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Welcome to SmartPOS',
+      message: 'Registration successful! Your 30-day free trial has started.',
       data: {
         token,
         user: {
@@ -95,25 +106,77 @@ exports.registerTenant = async (req, res, next) => {
         },
         tenant: {
           id: tenant.id,
-          businessName: tenant.business_name,
-          businessEmail: tenant.business_email
+          businessName: tenant.businessName,
+          businessEmail: tenant.businessEmail,
+          subscriptionPlan: 'trial',
+          subscriptionStatus: 'active',
+          isTrial: true
         }
       }
     });
   } catch (error) {
     console.error('Registration error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed',
+      error: error.message
+    });
   }
 };
 
 /**
- * Login user
+ * Login
  */
-exports.login = async (req, res, next) => {
+exports.login = async (req, res) => {
   try {
-    const { username, password, businessEmail } = req.body;
+    const { businessEmail, username, password } = req.body;
 
-    // Find tenant by business email
+    if (!businessEmail || !username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Business email, username, and password are required'
+      });
+    }
+
+    // Check for super admin login
+    if (businessEmail === process.env.SUPER_ADMIN_EMAIL && 
+        username === process.env.SUPER_ADMIN_USERNAME) {
+      
+      const validPassword = await bcrypt.compare(password, process.env.SUPER_ADMIN_PASSWORD_HASH || await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025', 10));
+      
+      if (!validPassword) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+
+      const token = jwt.sign(
+        {
+          userId: 0,
+          username: username,
+          isSuperAdmin: true
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      );
+
+      return res.json({
+        success: true,
+        data: {
+          token,
+          user: {
+            id: 0,
+            username: username,
+            fullName: 'Super Administrator',
+            role: 'super_admin',
+            isSuperAdmin: true
+          }
+        }
+      });
+    }
+
+    // Regular tenant login
     const tenant = await Tenant.findByEmail(businessEmail);
     if (!tenant) {
       return res.status(401).json({
@@ -122,34 +185,36 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check tenant subscription
-    if (tenant.subscription_status !== 'active') {
+    // Check subscription status
+    const isActive = await subscriptionService.isSubscriptionActive(tenant.id);
+    if (!isActive) {
       return res.status(403).json({
         success: false,
-        message: 'Your subscription is not active. Please contact support.'
+        message: 'Your subscription has expired. Please renew to continue.',
+        code: 'SUBSCRIPTION_EXPIRED',
+        subscriptionStatus: tenant.subscription_status
       });
     }
 
     // Find user
-    const user = await User.findByUsername(username, tenant.id);
-    if (!user) {
+    const userResult = await queryMain(
+      `SELECT * FROM public.tenant_users 
+      WHERE tenant_id = $1 AND username = $2 AND status = 'active'`,
+      [tenant.id, username]
+    );
+
+    if (userResult.rows.length === 0) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
-    // Check if user is active
-    if (user.status !== 'active') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account has been deactivated'
-      });
-    }
+    const user = userResult.rows[0];
 
     // Verify password
-    const isValidPassword = await User.verifyPassword(password, user.password_hash);
-    if (!isValidPassword) {
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -157,14 +222,28 @@ exports.login = async (req, res, next) => {
     }
 
     // Update last login
-    await User.updateLastLogin(user.id);
+    await queryMain(
+      'UPDATE public.tenant_users SET last_login = NOW() WHERE id = $1',
+      [user.id]
+    );
 
-    // Generate token
-    const token = generateToken(user.id, tenant.id);
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        tenantId: tenant.id,
+        role: user.role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    // Get subscription info
+    const subscription = await subscriptionService.getTenantSubscription(tenant.id);
 
     res.json({
       success: true,
-      message: 'Login successful',
       data: {
         token,
         user: {
@@ -177,63 +256,103 @@ exports.login = async (req, res, next) => {
         tenant: {
           id: tenant.id,
           businessName: tenant.business_name,
-          schema: tenant.tenant_schema
+          businessEmail: tenant.business_email,
+          subscriptionPlan: subscription.subscription_plan,
+          subscriptionStatus: subscription.subscription_status,
+          isTrial: subscription.is_trial,
+          trialEndsAt: subscription.trial_ends_at,
+          subscriptionEndsAt: subscription.subscription_ends_at,
+          daysRemaining: Math.max(0, Math.floor(subscription.days_remaining))
         }
       }
     });
   } catch (error) {
     console.error('Login error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed',
+      error: error.message
+    });
   }
 };
 
 /**
  * Get current user profile
  */
-exports.getProfile = async (req, res, next) => {
+exports.getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
+    if (req.user.isSuperAdmin) {
+      return res.json({
+        success: true,
+        data: {
+          user: {
+            id: 0,
+            username: req.user.username,
+            fullName: 'Super Administrator',
+            role: 'super_admin',
+            isSuperAdmin: true
+          }
+        }
       });
     }
+
+    const subscription = await subscriptionService.getTenantSubscription(req.user.tenantId);
 
     res.json({
       success: true,
       data: {
-        id: user.id,
-        username: user.username,
-        fullName: user.full_name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        lastLogin: user.last_login,
-        businessName: user.business_name,
-        tenantSchema: user.tenant_schema
+        user: req.user,
+        subscription: {
+          plan: subscription.subscription_plan,
+          planName: subscription.display_name,
+          status: subscription.subscription_status,
+          isTrial: subscription.is_trial,
+          expiresAt: subscription.expires_at,
+          daysRemaining: Math.max(0, Math.floor(subscription.days_remaining)),
+          features: subscription.features
+        }
       }
     });
   } catch (error) {
     console.error('Get profile error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch profile',
+      error: error.message
+    });
   }
 };
 
 /**
- * Update user profile
+ * Update profile
  */
-exports.updateProfile = async (req, res, next) => {
+exports.updateProfile = async (req, res) => {
   try {
     const { fullName, email, currentPassword, newPassword } = req.body;
 
-    const updateData = {};
+    if (req.user.isSuperAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Super admin profile cannot be updated via API'
+      });
+    }
 
-    if (fullName) updateData.fullName = fullName;
-    if (email) updateData.email = email;
+    const updates = [];
+    const params = [];
+    let paramCount = 1;
 
-    // If changing password, verify current password
+    if (fullName) {
+      updates.push(`full_name = $${paramCount}`);
+      params.push(fullName);
+      paramCount++;
+    }
+
+    if (email) {
+      updates.push(`email = $${paramCount}`);
+      params.push(email);
+      paramCount++;
+    }
+
     if (newPassword) {
       if (!currentPassword) {
         return res.status(400).json({
@@ -242,211 +361,53 @@ exports.updateProfile = async (req, res, next) => {
         });
       }
 
-      const user = await User.findById(req.user.id);
-      const isValid = await User.verifyPassword(currentPassword, user.password_hash);
+      // Verify current password
+      const userResult = await queryMain(
+        'SELECT password_hash FROM public.tenant_users WHERE id = $1',
+        [req.user.id]
+      );
 
-      if (!isValid) {
+      const validPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+      if (!validPassword) {
         return res.status(401).json({
           success: false,
           message: 'Current password is incorrect'
         });
       }
 
-      updateData.password = newPassword;
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      updates.push(`password_hash = $${paramCount}`);
+      params.push(passwordHash);
+      paramCount++;
     }
 
-    const updatedUser = await User.update(req.user.id, updateData);
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No updates provided'
+      });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    params.push(req.user.id);
+
+    await queryMain(
+      `UPDATE public.tenant_users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+      params
+    );
 
     res.json({
       success: true,
-      message: 'Profile updated successfully',
-      data: {
-        id: updatedUser.id,
-        username: updatedUser.username,
-        fullName: updatedUser.full_name,
-        email: updatedUser.email,
-        role: updatedUser.role
-      }
+      message: 'Profile updated successfully'
     });
   } catch (error) {
     console.error('Update profile error:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
   }
 };
-
-/**
- * Logout user (client-side token removal)
- */
-exports.logout = async (req, res) => {
-  res.json({
-    success: true,
-    message: 'Logged out successfully'
-  });
-};
-
-/**
- * Helper function to create tenant tables
- */
-async function createTenantTables(schema) {
-  await queryMain(`
-    SET search_path TO "${schema}";
-
-    -- Users table (tenant-specific users)
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(100) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      full_name VARCHAR(255) NOT NULL,
-      email VARCHAR(255),
-      role VARCHAR(50) NOT NULL,
-      status VARCHAR(20) DEFAULT 'active',
-      last_login TIMESTAMP,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Products table
-    CREATE TABLE IF NOT EXISTS products (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      barcode VARCHAR(50) NOT NULL UNIQUE,
-      category VARCHAR(100) NOT NULL,
-      subcategory VARCHAR(100),
-      cost_price DECIMAL(10,2) NOT NULL,
-      selling_price DECIMAL(10,2) NOT NULL,
-      wholesale_price DECIMAL(10,2),
-      vat_type VARCHAR(20) DEFAULT 'vatable',
-      unit_of_measure VARCHAR(20) DEFAULT 'pcs',
-      stock_quantity DECIMAL(10,2) DEFAULT 0,
-      reorder_level DECIMAL(10,2) DEFAULT 10,
-      expiry_tracking BOOLEAN DEFAULT false,
-      description TEXT,
-      status VARCHAR(20) DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Sales table
-    CREATE TABLE IF NOT EXISTS sales (
-      id SERIAL PRIMARY KEY,
-      receipt_no VARCHAR(50) NOT NULL UNIQUE,
-      cashier_id INTEGER REFERENCES users(id),
-      customer_id INTEGER,
-      subtotal DECIMAL(10,2) NOT NULL,
-      vat_amount DECIMAL(10,2) DEFAULT 0,
-      discount DECIMAL(10,2) DEFAULT 0,
-      total_amount DECIMAL(10,2) NOT NULL,
-      payment_method VARCHAR(50) NOT NULL,
-      amount_paid DECIMAL(10,2) NOT NULL,
-      change_amount DECIMAL(10,2) DEFAULT 0,
-      mpesa_code VARCHAR(50),
-      notes TEXT,
-      status VARCHAR(20) DEFAULT 'completed',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Sale Items table
-    CREATE TABLE IF NOT EXISTS sale_items (
-      id SERIAL PRIMARY KEY,
-      sale_id INTEGER REFERENCES sales(id) ON DELETE CASCADE,
-      product_id INTEGER REFERENCES products(id),
-      product_name VARCHAR(255) NOT NULL,
-      quantity DECIMAL(10,2) NOT NULL,
-      unit_price DECIMAL(10,2) NOT NULL,
-      subtotal DECIMAL(10,2) NOT NULL,
-      vat_amount DECIMAL(10,2) DEFAULT 0,
-      total DECIMAL(10,2) NOT NULL,
-      discount DECIMAL(10,2) DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Suppliers table
-    CREATE TABLE IF NOT EXISTS suppliers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      contact_person VARCHAR(255),
-      phone VARCHAR(20) NOT NULL,
-      email VARCHAR(255),
-      address TEXT,
-      payment_terms VARCHAR(50) DEFAULT 'cash',
-      tax_pin VARCHAR(50),
-      balance DECIMAL(10,2) DEFAULT 0,
-      status VARCHAR(20) DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Purchases table
-    CREATE TABLE IF NOT EXISTS purchases (
-      id SERIAL PRIMARY KEY,
-      supplier_id INTEGER REFERENCES suppliers(id),
-      user_id INTEGER REFERENCES users(id),
-      invoice_no VARCHAR(50) NOT NULL UNIQUE,
-      subtotal DECIMAL(10,2) NOT NULL,
-      vat_amount DECIMAL(10,2) DEFAULT 0,
-      total_cost DECIMAL(10,2) NOT NULL,
-      amount_paid DECIMAL(10,2) DEFAULT 0,
-      balance DECIMAL(10,2) DEFAULT 0,
-      payment_method VARCHAR(50),
-      notes TEXT,
-      status VARCHAR(20) DEFAULT 'completed',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Purchase Items table
-    CREATE TABLE IF NOT EXISTS purchase_items (
-      id SERIAL PRIMARY KEY,
-      purchase_id INTEGER REFERENCES purchases(id) ON DELETE CASCADE,
-      product_id INTEGER REFERENCES products(id),
-      quantity DECIMAL(10,2) NOT NULL,
-      unit_cost DECIMAL(10,2) NOT NULL,
-      total_cost DECIMAL(10,2) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Customers table
-    CREATE TABLE IF NOT EXISTS customers (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      phone VARCHAR(20) NOT NULL UNIQUE,
-      email VARCHAR(255),
-      address TEXT,
-      loyalty_points INTEGER DEFAULT 0,
-      credit_balance DECIMAL(10,2) DEFAULT 0,
-      status VARCHAR(20) DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Expenses table
-    CREATE TABLE IF NOT EXISTS expenses (
-      id SERIAL PRIMARY KEY,
-      category VARCHAR(100) NOT NULL,
-      description TEXT,
-      amount DECIMAL(10,2) NOT NULL,
-      payment_method VARCHAR(50) DEFAULT 'cash',
-      reference VARCHAR(100),
-      user_id INTEGER REFERENCES users(id),
-      expense_date DATE NOT NULL,
-      status VARCHAR(20) DEFAULT 'approved',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- Create indexes
-    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
-    CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
-    CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at);
-    CREATE INDEX IF NOT EXISTS idx_sales_cashier ON sales(cashier_id);
-    CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
-    CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_id);
-    CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
-    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
-
-    RESET search_path;
-  `);
-}
 
 module.exports = exports;
