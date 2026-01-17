@@ -127,6 +127,11 @@ export const formatKenyanPhone = (phone) => {
 };
 
 /**
+ * Format phone number (alias for formatKenyanPhone)
+ */
+export const formatPhoneNumber = formatKenyanPhone;
+
+/**
  * Truncate text
  */
 export const truncateText = (text, maxLength = 50) => {
@@ -341,6 +346,7 @@ export default {
   generateReceiptNumber,
   validateKenyanPhone,
   formatKenyanPhone,
+  formatPhoneNumber,
   truncateText,
   getInitials,
   debounce,
