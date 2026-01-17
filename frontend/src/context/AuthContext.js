@@ -17,35 +17,36 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      const savedTenant = localStorage.getItem('tenant');
 
-  const checkAuth = async () => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    const savedTenant = localStorage.getItem('tenant');
+      if (token && savedUser) {
+        try {
+          // Restore saved user and tenant from localStorage
+          setUser(JSON.parse(savedUser));
+          if (savedTenant) setTenant(JSON.parse(savedTenant));
 
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        if (savedTenant) {
-          setTenant(JSON.parse(savedTenant));
+          // Fetch fresh profile data
+          const response = await authAPI.getProfile();
+          if (response.data?.data?.user) {
+            setUser(response.data.data.user);
+          }
+          if (response.data?.data?.subscription) {
+            setTenant(response.data.data.subscription);
+            localStorage.setItem('tenant', JSON.stringify(response.data.data.subscription));
+          }
+        } catch (error) {
+          console.error('Auth check failed, keeping existing user:', error);
+          // Do NOT logout here to avoid infinite refresh
         }
-        
-        // Fetch fresh profile data
-        const response = await authAPI.getProfile();
-        setUser(response.data.data.user);
-        if (response.data.data.subscription) {
-          setTenant(response.data.data.subscription);
-          localStorage.setItem('tenant', JSON.stringify(response.data.data.subscription));
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        logout();
       }
-    }
-    setLoading(false);
-  };
+      setLoading(false);
+    };
+
+    initAuth();
+  }, []);
 
   const login = async (credentials) => {
     const response = await authAPI.login(credentials);
