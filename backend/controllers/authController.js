@@ -8,7 +8,7 @@ const { sendWelcomeEmail } = require('../config/email');
 /**
  * Register new tenant
  */
-exports.register = async (req, res) => {
+const register = async (req, res) => {
   try {
     const {
       businessName,
@@ -127,7 +127,7 @@ exports.register = async (req, res) => {
 /**
  * Login
  */
-exports.login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { businessEmail, username, password } = req.body;
 
@@ -142,9 +142,9 @@ exports.login = async (req, res) => {
     if (businessEmail === process.env.SUPER_ADMIN_EMAIL && 
         username === process.env.SUPER_ADMIN_USERNAME) {
       
-      const validPassword = await bcrypt.compare(password, process.env.SUPER_ADMIN_PASSWORD_HASH || await bcrypt.hash(process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025', 10));
+      const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025';
       
-      if (!validPassword) {
+      if (password !== superAdminPassword) {
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials'
@@ -279,7 +279,7 @@ exports.login = async (req, res) => {
 /**
  * Get current user profile
  */
-exports.getProfile = async (req, res) => {
+const getProfile = async (req, res) => {
   try {
     if (req.user.isSuperAdmin) {
       return res.json({
@@ -326,7 +326,7 @@ exports.getProfile = async (req, res) => {
 /**
  * Update profile
  */
-exports.updateProfile = async (req, res) => {
+const updateProfile = async (req, res) => {
   try {
     const { fullName, email, currentPassword, newPassword } = req.body;
 
@@ -410,4 +410,9 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-module.exports = exports;
+module.exports = {
+  register,
+  login,
+  getProfile,
+  updateProfile
+};
