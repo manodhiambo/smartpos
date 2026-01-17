@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { dashboardAPI } from '../services/api';
 
 const NotificationsContext = createContext();
@@ -16,8 +16,8 @@ export const NotificationsProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
+  // Use useCallback to memoize the fetch function
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -40,41 +40,45 @@ export const NotificationsProvider = ({ children }) => {
       setUnreadCount(stockNotifications.filter(n => !n.read).length);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
+      // Don't show error toast to avoid annoying users
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array since it doesn't depend on any props or state
 
   // Mark notification as read
-  const markAsRead = (id) => {
+  const markAsRead = useCallback((id) => {
     setNotifications(prev =>
       prev.map(notif =>
         notif.id === id ? { ...notif, read: true } : notif
       )
     );
     setUnreadCount(prev => Math.max(0, prev - 1));
-  };
+  }, []);
 
   // Mark all as read
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setNotifications(prev =>
       prev.map(notif => ({ ...notif, read: true }))
     );
     setUnreadCount(0);
-  };
+  }, []);
 
   // Clear all notifications
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setNotifications([]);
     setUnreadCount(0);
-  };
+  }, []);
 
-  // Fetch on mount and every 5 minutes
+  // Fetch on mount only
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5 * 60 * 1000); // 5 minutes
+    
+    // Fetch every 10 minutes instead of 5 to reduce server load
+    const interval = setInterval(fetchNotifications, 10 * 60 * 1000);
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications]); // Now safe because fetchNotifications is memoized
 
   const value = {
     notifications,
