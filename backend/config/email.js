@@ -1,51 +1,51 @@
 const nodemailer = require('nodemailer');
-require('dotenv').config();
 
-/**
- * Create email transporter based on service
- */
 const createTransporter = () => {
-  const service = process.env.EMAIL_SERVICE || 'brevo';
-  
   const config = {
-    host: process.env.EMAIL_HOST,
+    host: process.env.EMAIL_HOST || 'smtp-relay.brevo.com',
     port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: false, // Use TLS
+    secure: false,
     auth: {
       user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
+      pass: process.env.EMAIL_PASSWORD
+    }
   };
 
-  return nodemailer.createTransporter(config);
+  // Check if email credentials are configured
+  if (!config.auth.user || !config.auth.pass) {
+    console.log('⚠️  Email not configured - emails will be logged to console');
+    return null;
+  }
+
+  return nodemailer.createTransport(config);
 };
 
 const transporter = createTransporter();
 
 /**
  * Send email
- * @param {Object} options - Email options
- * @param {string} options.to - Recipient email
- * @param {string} options.subject - Email subject
- * @param {string} options.text - Plain text content
- * @param {string} options.html - HTML content
- * @returns {Promise} Send result
  */
-const sendEmail = async ({ to, subject, text, html }) => {
+const sendEmail = async (to, subject, html) => {
   try {
-    const mailOptions = {
-      from: `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM}>`,
+    if (!transporter) {
+      console.log('\n📧 Email (not sent - no config):');
+      console.log('To:', to);
+      console.log('Subject:', subject);
+      console.log('---\n');
+      return { success: true, message: 'Email logged (not configured)' };
+    }
+
+    const info = await transporter.sendMail({
+      from: `"${process.env.EMAIL_FROM_NAME || 'SmartPOS'}" <${process.env.EMAIL_FROM || 'noreply@smartpos.com'}>`,
       to,
       subject,
-      text,
-      html,
-    };
+      html
+    });
 
-    const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Email send error:', error.message);
+    console.error('❌ Email error:', error.message);
     return { success: false, error: error.message };
   }
 };
@@ -54,7 +54,8 @@ const sendEmail = async ({ to, subject, text, html }) => {
  * Send welcome email to new tenant
  */
 const sendWelcomeEmail = async (email, businessName, username, password) => {
-  const subject = 'Welcome to SmartPOS!';
+  const subject = `Welcome to SmartPOS - ${businessName}`;
+  
   const html = `
     <!DOCTYPE html>
     <html>
@@ -62,61 +63,62 @@ const sendWelcomeEmail = async (email, businessName, username, password) => {
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; }
-        .credentials { background: white; padding: 20px; border-left: 4px solid #4F46E5; margin: 20px 0; }
-        .button { display: inline-block; padding: 12px 24px; background: #4F46E5; color: white; text-decoration: none; border-radius: 5px; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+        .credentials { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
+        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <h1>🛒 Welcome to SmartPOS!</h1>
+          <h1>Welcome to SmartPOS!</h1>
         </div>
         <div class="content">
           <h2>Hello ${businessName}!</h2>
-          <p>Your SmartPOS account has been successfully created. You can now manage your supermarket with our powerful POS system.</p>
+          <p>Thank you for choosing SmartPOS for your business. Your account has been successfully created.</p>
           
           <div class="credentials">
             <h3>Your Login Credentials:</h3>
+            <p><strong>Business Email:</strong> ${email}</p>
             <p><strong>Username:</strong> ${username}</p>
             <p><strong>Password:</strong> ${password}</p>
-            <p><strong>Login URL:</strong> ${process.env.FRONTEND_URL}/login</p>
           </div>
-          
-          <p><strong>Important:</strong> Please change your password after first login for security.</p>
-          
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="${process.env.FRONTEND_URL}/login" class="button">Login to SmartPOS</a>
-          </p>
-          
+
+          <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
+
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" class="button">Login to SmartPOS</a>
+
           <h3>Getting Started:</h3>
-          <ul>
-            <li>✅ Set up your products and inventory</li>
-            <li>✅ Configure M-Pesa payment details</li>
-            <li>✅ Add your staff members</li>
-            <li>✅ Start making sales!</li>
-          </ul>
+          <ol>
+            <li>Login with the credentials above</li>
+            <li>Add your products to inventory</li>
+            <li>Create users for your staff</li>
+            <li>Start selling!</li>
+          </ol>
+
+          <p>If you need any assistance, please don't hesitate to contact our support team.</p>
         </div>
         <div class="footer">
-          <p>© 2025 SmartPOS. All rights reserved.</p>
-          <p>Need help? Contact us at support@smartpos.com</p>
+          <p>&copy; 2025 SmartPOS. All rights reserved.</p>
+          <p>This is an automated email, please do not reply.</p>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  return await sendEmail({ to: email, subject, html, text: `Welcome to SmartPOS! Your credentials - Username: ${username}, Password: ${password}` });
+  return sendEmail(email, subject, html);
 };
 
 /**
  * Send password reset email
  */
-const sendPasswordResetEmail = async (email, resetToken, businessName) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-  const subject = 'Password Reset Request - SmartPOS';
+const sendPasswordResetEmail = async (email, resetToken) => {
+  const subject = 'SmartPOS - Password Reset Request';
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+  
   const html = `
     <!DOCTYPE html>
     <html>
@@ -124,50 +126,45 @@ const sendPasswordResetEmail = async (email, resetToken, businessName) => {
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; }
-        .button { display: inline-block; padding: 12px 24px; background: #DC2626; color: white; text-decoration: none; border-radius: 5px; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .header { background: #667eea; color: white; padding: 20px; text-align: center; }
+        .content { padding: 30px; background: #f9f9f9; }
+        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <h1>🔐 Password Reset Request</h1>
+          <h1>Password Reset Request</h1>
         </div>
         <div class="content">
-          <h2>Hello ${businessName}!</h2>
-          <p>We received a request to reset your SmartPOS password.</p>
-          <p>Click the button below to reset your password:</p>
-          
-          <p style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" class="button">Reset Password</a>
-          </p>
-          
-          <p><strong>Note:</strong> This link will expire in 1 hour.</p>
+          <p>You requested to reset your password. Click the button below to reset it:</p>
+          <a href="${resetUrl}" class="button">Reset Password</a>
           <p>If you didn't request this, please ignore this email.</p>
-        </div>
-        <div class="footer">
-          <p>© 2025 SmartPOS. All rights reserved.</p>
+          <p>This link will expire in 1 hour.</p>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  return await sendEmail({ to: email, subject, html, text: `Reset your password: ${resetUrl}` });
+  return sendEmail(email, subject, html);
 };
 
 /**
- * Test email configuration
+ * Test email connection
  */
 const testEmailConnection = async () => {
   try {
+    if (!transporter) {
+      console.log('⚠️  Email service not configured (optional)');
+      return false;
+    }
+
     await transporter.verify();
-    console.log('✅ Email service ready');
+    console.log('✅ Email service connected');
     return true;
   } catch (error) {
-    console.error('❌ Email service error:', error.message);
+    console.log('⚠️  Email service connection failed (optional):', error.message);
     return false;
   }
 };

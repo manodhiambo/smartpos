@@ -1,106 +1,83 @@
 const { Pool } = require('pg');
-require('dotenv').config();
 
-// Main database pool configuration
-const poolConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'smartpos',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+// Parse DATABASE_URL for production or use individual env vars
+const getDatabaseConfig = () => {
+  if (process.env.DATABASE_URL) {
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    };
+  }
+
+  const config = {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT) || 5432,
+    user: process.env.DB_USER || 'postgres',
+    database: process.env.DB_NAME || 'smartpos',
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  };
+
+  if (process.env.DB_PASSWORD) {
+    config.password = process.env.DB_PASSWORD;
+  }
+
+  return config;
 };
 
-// Main pool for public schema (tenant management)
-const mainPool = new Pool(poolConfig);
+// Create main pool
+const mainPool = new Pool(getDatabaseConfig());
 
-// Store tenant-specific pools
+// Cache for tenant-specific pools
 const tenantPools = new Map();
 
 /**
- * Get or create a tenant-specific connection pool
- * @param {string} tenantSchema - The schema name for the tenant
- * @returns {Pool} PostgreSQL connection pool
+ * Get or create a pool for a specific tenant schema
  */
 const getTenantPool = (tenantSchema) => {
   if (!tenantPools.has(tenantSchema)) {
-    const pool = new Pool({
-      ...poolConfig,
-      max: 10,
-    });
-    tenantPools.set(tenantSchema, pool);
+    const config = getDatabaseConfig();
+    config.searchPath = tenantSchema;
+    tenantPools.set(tenantSchema, new Pool(config));
   }
   return tenantPools.get(tenantSchema);
 };
 
 /**
- * Execute query on main (public) schema
- * @param {string} text - SQL query
- * @param {Array} params - Query parameters
- * @returns {Promise} Query result
+ * Query the main database (public schema)
  */
-const queryMain = async (text, params = []) => {
-  const start = Date.now();
-  try {
-    const result = await mainPool.query(text, params);
-    const duration = Date.now() - start;
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Main Query:', { text: text.substring(0, 100), duration, rows: result.rowCount });
-    }
-    return result;
-  } catch (error) {
-    console.error('Main query error:', error.message);
-    throw error;
-  }
+const queryMain = async (text, params) => {
+  return await mainPool.query(text, params);
 };
 
 /**
- * Execute query on tenant-specific schema
- * @param {string} tenantSchema - The schema name
- * @param {string} text - SQL query
- * @param {Array} params - Query parameters
- * @returns {Promise} Query result
+ * Query a tenant-specific schema
  */
-const queryTenant = async (tenantSchema, text, params = []) => {
+const queryTenant = async (tenantSchema, text, params) => {
   const pool = getTenantPool(tenantSchema);
-  const start = Date.now();
-  
+  const client = await pool.connect();
   try {
-    // Set search path to tenant schema
-    await pool.query(`SET search_path TO "${tenantSchema}", public`);
-    const result = await pool.query(text, params);
-    const duration = Date.now() - start;
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Tenant Query:', { 
-        schema: tenantSchema, 
-        text: text.substring(0, 100), 
-        duration, 
-        rows: result.rowCount 
-      });
-    }
+    await client.query(`SET search_path TO "${tenantSchema}"`);
+    const result = await client.query(text, params);
     return result;
-  } catch (error) {
-    console.error('Tenant query error:', error.message);
-    throw error;
+  } finally {
+    client.release();
   }
 };
 
 /**
- * Execute transaction on tenant schema
- * @param {string} tenantSchema - The schema name
- * @param {Function} callback - Transaction callback function
- * @returns {Promise} Transaction result
+ * Execute multiple queries in a transaction
  */
 const transactionTenant = async (tenantSchema, callback) => {
   const pool = getTenantPool(tenantSchema);
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
-    await client.query(`SET search_path TO "${tenantSchema}", public`);
+    await client.query(`SET search_path TO "${tenantSchema}"`);
     const result = await callback(client);
     await client.query('COMMIT');
     return result;
@@ -114,13 +91,12 @@ const transactionTenant = async (tenantSchema, callback) => {
 
 /**
  * Test database connection
- * @returns {Promise<boolean>} Connection status
  */
 const testConnection = async () => {
   try {
-    const result = await mainPool.query('SELECT NOW() as current_time, current_database() as database');
-    console.log('✅ Database connected:', result.rows[0].database);
-    console.log('⏰ Server time:', result.rows[0].current_time);
+    const result = await mainPool.query('SELECT NOW()');
+    console.log('✅ Database connected successfully');
+    console.log(`   Time: ${result.rows[0].now}`);
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
@@ -129,28 +105,22 @@ const testConnection = async () => {
 };
 
 /**
- * Close all database pools
+ * Close all database connections
  */
 const closeAllPools = async () => {
-  try {
-    await mainPool.end();
-    for (const [schema, pool] of tenantPools) {
-      await pool.end();
-      console.log(`Closed pool for: ${schema}`);
-    }
-    console.log('✅ All database connections closed');
-  } catch (error) {
-    console.error('Error closing pools:', error.message);
+  console.log('🔒 Closing database connections...');
+  
+  for (const [schema, pool] of tenantPools.entries()) {
+    await pool.end();
+    console.log(`   Closed pool for schema: ${schema}`);
   }
+  
+  await mainPool.end();
+  console.log('   Closed main pool');
 };
-
-// Handle process termination
-process.on('SIGTERM', closeAllPools);
-process.on('SIGINT', closeAllPools);
 
 module.exports = {
   mainPool,
-  getTenantPool,
   queryMain,
   queryTenant,
   transactionTenant,
