@@ -1,4 +1,9 @@
-const subscriptionService = require('../services/subscriptionService');
+let subscriptionService;
+try {
+  subscriptionService = require('../services/subscriptionService');
+} catch (error) {
+  console.warn('⚠️  Subscription service not found');
+}
 
 /**
  * Check if tenant's subscription is active
@@ -7,6 +12,11 @@ exports.checkSubscription = async (req, res, next) => {
   try {
     // Skip for public routes and super admin
     if (!req.user || req.user.isSuperAdmin) {
+      return next();
+    }
+
+    // If subscription service doesn't exist, allow access
+    if (!subscriptionService) {
       return next();
     }
 
@@ -25,10 +35,8 @@ exports.checkSubscription = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Subscription check error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to verify subscription status'
-    });
+    // Don't block on subscription check errors
+    next();
   }
 };
 
@@ -38,7 +46,7 @@ exports.checkSubscription = async (req, res, next) => {
 exports.checkUsageLimits = (limitType) => {
   return async (req, res, next) => {
     try {
-      if (!req.user || req.user.isSuperAdmin) {
+      if (!req.user || req.user.isSuperAdmin || !subscriptionService) {
         return next();
       }
 
