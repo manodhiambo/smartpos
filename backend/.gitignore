@@ -1,7 +1,35 @@
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Environment
 .env
 .env.*
 !.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Logs
 logs/
 *.log
+npm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build
+dist/
+build/
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# Vercel
+.vercel
