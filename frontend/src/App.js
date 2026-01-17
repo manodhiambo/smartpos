@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Layout from './components/layout/Layout';
 
@@ -20,108 +21,106 @@ import ExpensesPage from './pages/ExpensesPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
+import SubscriptionPage from './pages/SubscriptionPage';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#fff',
-              color: '#363636',
-              padding: '16px',
-              borderRadius: '12px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            },
-            success: {
-              iconTheme: {
-                primary: '#10B981',
-                secondary: '#fff',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#EF4444',
-                secondary: '#fff',
-              },
-            },
-          }}
-        />
+        <NotificationsProvider>
+          <Toaster position="top-right" />
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<WelcomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<WelcomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-
-          {/* Protected Routes */}
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <Layout />
+            {/* Super Admin Routes */}
+            <Route path="/super-admin" element={
+              <ProtectedRoute allowedRoles={['super_admin']}>
+                <Layout><SuperAdminDashboard /></Layout>
               </ProtectedRoute>
-            }
-          >
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="pos" element={<POSPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="sales" element={<SalesPage />} />
-            <Route
-              path="purchases"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
-                  <PurchasesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="suppliers"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
-                  <SuppliersPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="customers" element={<CustomersPage />} />
-            <Route
-              path="expenses"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                  <ExpensesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="reports"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                  <ReportsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="users"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                  <UsersPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="settings"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                  <SettingsPage />
-                </ProtectedRoute>
-              }
-            />
+            } />
+
+            {/* Subscription Page (accessible even if expired) */}
+            <Route path="/subscription" element={
+              <ProtectedRoute>
+                <Layout><SubscriptionPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            {/* Protected Routes */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Layout><DashboardPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/pos" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
+                <Layout><POSPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/products" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
+                <Layout><ProductsPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/sales" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
+                <Layout><SalesPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/purchases" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
+                <Layout><PurchasesPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/suppliers" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
+                <Layout><SuppliersPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/customers" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
+                <Layout><CustomersPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/expenses" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                <Layout><ExpensesPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/reports" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                <Layout><ReportsPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/users" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                <Layout><UsersPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Layout><SettingsPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            {/* Redirect */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Route>
-        </Routes>
+          </Routes>
+        </NotificationsProvider>
       </AuthProvider>
     </Router>
   );

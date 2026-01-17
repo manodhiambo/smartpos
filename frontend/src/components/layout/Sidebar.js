@@ -11,12 +11,25 @@ import {
   FaMoneyBillWave,
   FaChartBar,
   FaUsersCog,
-  FaCog
+  FaCog,
+  FaCreditCard,
+  FaStore
 } from 'react-icons/fa';
 
 const Sidebar = ({ isOpen }) => {
   const { user } = useAuth();
 
+  // Super Admin menu
+  const superAdminItems = [
+    {
+      path: '/super-admin',
+      icon: <FaStore />,
+      label: 'Admin Dashboard',
+      roles: ['super_admin']
+    }
+  ];
+
+  // Regular user menu
   const menuItems = [
     {
       path: '/dashboard',
@@ -79,6 +92,12 @@ const Sidebar = ({ isOpen }) => {
       roles: ['admin', 'manager']
     },
     {
+      path: '/subscription',
+      icon: <FaCreditCard />,
+      label: 'Subscription',
+      roles: ['admin', 'manager', 'cashier', 'storekeeper']
+    },
+    {
       path: '/settings',
       icon: <FaCog />,
       label: 'Settings',
@@ -86,8 +105,11 @@ const Sidebar = ({ isOpen }) => {
     }
   ];
 
+  // Use super admin menu if user is super admin, otherwise use regular menu
+  const items = user?.isSuperAdmin ? superAdminItems : menuItems;
+
   // Filter menu items based on user role
-  const filteredMenuItems = menuItems.filter(item => 
+  const filteredMenuItems = items.filter(item => 
     item.roles.includes(user?.role)
   );
 

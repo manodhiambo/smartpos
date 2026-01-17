@@ -1,0 +1,144 @@
+.subscription-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subscription-banner.info {
+  background: linear-gradient(135deg, #EBF8FF 0%, #BEE3F8 100%);
+  border: 2px solid #3B82F6;
+}
+
+.subscription-banner.warning {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  border: 2px solid #F59E0B;
+}
+
+.subscription-banner.expired {
+  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+  border: 2px solid #EF4444;
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.banner-icon {
+  font-size: 32px;
+}
+
+.subscription-banner.info .banner-icon {
+  color: #3B82F6;
+}
+
+.subscription-banner.warning .banner-icon {
+  color: #F59E0B;
+}
+
+.subscription-banner.expired .banner-icon {
+  color: #EF4444;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-text strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.banner-text p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.banner-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.subscription-banner.info .banner-btn {
+  background: #3B82F6;
+  color: white;
+}
+
+.subscription-banner.info .banner-btn:hover {
+  background: #2563EB;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.subscription-banner.warning .banner-btn {
+  background: #F59E0B;
+  color: white;
+}
+
+.subscription-banner.warning .banner-btn:hover {
+  background: #D97706;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.subscription-banner.expired .banner-btn {
+  background: #EF4444;
+  color: white;
+}
+
+.subscription-banner.expired .banner-btn:hover {
+  background: #DC2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+@media (max-width: 768px) {
+  .subscription-banner {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .banner-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
