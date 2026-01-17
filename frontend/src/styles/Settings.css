@@ -1,0 +1,122 @@
+.settings-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.settings-tabs .tab-btn {
+  padding: 14px 24px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-tabs .tab-btn:hover {
+  color: var(--primary-color);
+}
+
+.settings-tabs .tab-btn.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+.settings-content {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.settings-section .section-header {
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section .section-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.settings-section .section-header p {
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.password-section {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 2px solid var(--border-color);
+}
+
+.password-section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-description {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.settings-section form {
+  max-width: 800px;
+}
+
+.settings-section .btn {
+  margin-top: 24px;
+}
+
+.btn-icon-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: #F59E0B;
+}
+
+.btn-icon-warning:hover {
+  background: #F59E0B;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .settings-tabs {
+    flex-direction: column;
+    border-bottom: none;
+  }
+
+  .settings-tabs .tab-btn {
+    border-bottom: 1px solid var(--border-color);
+    border-left: 3px solid transparent;
+    justify-content: flex-start;
+  }
+
+  .settings-tabs .tab-btn.active {
+    border-bottom-color: var(--border-color);
+    border-left-color: var(--primary-color);
+  }
+
+  .settings-content {
+    padding: 24px;
+  }
+}

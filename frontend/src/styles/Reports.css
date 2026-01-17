@@ -1,0 +1,169 @@
+.reports-page {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.report-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+  color: var(--primary-color);
+}
+
+.tab-btn.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+.custom-date-range {
+  display: flex;
+  gap: 16px;
+}
+
+.report-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.report-section {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.payment-breakdown-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.payment-card {
+  background: var(--light-color);
+  padding: 20px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payment-method-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.payment-amount {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--primary-color);
+}
+
+.payment-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.financial-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.summary-card.large {
+  padding: 32px;
+}
+
+.summary-card.success {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: white;
+}
+
+.summary-card.success .summary-label,
+.summary-card.success .summary-subtext {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.summary-card.success .summary-value {
+  color: white;
+}
+
+.pl-statement {
+  background: var(--light-color);
+  padding: 24px;
+  border-radius: 12px;
+}
+
+.pl-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pl-row.subtotal {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid var(--border-color);
+}
+
+.pl-row.total {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 3px solid var(--primary-color);
+  font-size: 18px;
+  color: var(--primary-color);
+}
+
+.pl-row .amount.negative {
+  color: var(--danger-color);
+}
+
+.expense-summary {
+  margin-bottom: 24px;
+}
+
+.summary-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.summary-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.summary-subtext {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .custom-date-range {
+    flex-direction: column;
+  }
+
+  .financial-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
