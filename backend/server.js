@@ -3,61 +3,31 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
-// Import configurations
-const { testConnection, closeAllPools } = require('./config/database');
-const { testEmailConnection } = require('./config/email');
-
-// Import middleware
-const { errorHandler, notFound } = require('./middleware/errorHandler');
-const { apiLimiter } = require('./middleware/rateLimiter');
-
-// Import routes
+const { testConnection } = require('./config/database');
 const routes = require('./routes');
 
-// Initialize express app
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Trust proxy (for deployment behind reverse proxy)
-app.set('trust proxy', 1);
-
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// CORS configuration
-const corsOptions = {
+// Middleware
+app.use(helmet());
+app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// Body parser middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser());
-
-// Compression middleware
+  credentials: true
+}));
 app.use(compression());
+app.use(morgan('combined'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware (only in development)
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
+// Email configuration check
+if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) {
+  console.log('⚠️  Email not configured - emails will be logged to console');
 }
 
-// Static files
-app.use('/uploads', express.static('public/uploads'));
-
-// Rate limiting
-app.use('/api/', apiLimiter);
-
-// API routes
+// Routes
 app.use('/api', routes);
 
 // Root route
@@ -65,30 +35,33 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'SmartPOS API Server',
-    version: '1.0.0',
-    status: 'running',
-    endpoints: {
-      api: '/api',
-      health: '/api/health'
-    }
+    version: '1.0.0'
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
 // 404 handler
-app.use(notFound);
-
-// Error handler
-app.use(errorHandler);
-
-// Server configuration
-const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0';
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
 
 // Start server
 const startServer = async () => {
   try {
-    console.log('🚀 Starting SmartPOS Server...\n');
-
+    console.log('🚀 Starting SmartPOS Server...');
+    
     // Test database connection
     console.log('📊 Testing database connection...');
     const dbConnected = await testConnection();
@@ -98,13 +71,49 @@ const startServer = async () => {
       process.exit(1);
     }
 
-    // Test email service (non-critical)
-    console.log('📧 Testing email service...');
-    await testEmailConnection();
-    console.log('');
+    // Check and fix tenant schema if needed
+    try {
+      const { queryMain } = require('./config/database');
+      const tenantResult = await queryMain('SELECT tenant_schema FROM public.tenants WHERE id = 1');
+      
+      if (tenantResult.rows.length > 0) {
+        const tenantSchema = tenantResult.rows[0].tenant_schema;
+        
+        // Check if sales table exists
+        const tableCheck = await queryMain(
+          `SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = $1 AND table_name = 'sales'
+          )`,
+          [tenantSchema]
+        );
 
-    // Start listening
-    const server = app.listen(PORT, HOST, () => {
+        if (!tableCheck.rows[0].exists) {
+          console.log('⚠️  Tenant tables missing, creating them...');
+          const { exec } = require('child_process');
+          exec('node scripts/fix-tenant-schema.js', (error, stdout, stderr) => {
+            if (error) {
+              console.error('Failed to create tenant tables:', error);
+            } else {
+              console.log(stdout);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not check tenant schema:', error.message);
+    }
+
+    // Test email service
+    console.log('📧 Testing email service...');
+    const emailService = require('./config/email');
+    if (emailService.transporter) {
+      console.log('✅ Email service configured');
+    } else {
+      console.log('⚠️  Email service not configured (optional)');
+    }
+
+    app.listen(PORT, '0.0.0.0', () => {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('✅ SmartPOS Server Running');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -112,53 +121,23 @@ const startServer = async () => {
       console.log(`🔗 Server URL: http://localhost:${PORT}`);
       console.log(`📡 API Base: http://localhost:${PORT}/api`);
       console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      console.log('📝 Press CTRL+C to stop the server\n');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📝 Press CTRL+C to stop the server');
     });
-
-    // Graceful shutdown
-    const gracefulShutdown = async (signal) => {
-      console.log(`\n${signal} received. Starting graceful shutdown...`);
-      
-      server.close(async () => {
-        console.log('🔒 HTTP server closed');
-        
-        // Close database connections
-        await closeAllPools();
-        
-        console.log('✅ Graceful shutdown completed');
-        process.exit(0);
-      });
-
-      // Force close after 10 seconds
-      setTimeout(() => {
-        console.error('⚠️  Forcing shutdown after timeout');
-        process.exit(1);
-      }, 10000);
-    };
-
-    // Handle shutdown signals
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-    // Handle uncaught errors
-    process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error);
-      gracefulShutdown('UNCAUGHT_EXCEPTION');
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-      gracefulShutdown('UNHANDLED_REJECTION');
-    });
-
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-// Start the server
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('\n🛑 SIGTERM received, shutting down gracefully...');
+  const { closeAllPools } = require('./config/database');
+  await closeAllPools();
+  process.exit(0);
+});
+
 startServer();
 
 module.exports = app;
