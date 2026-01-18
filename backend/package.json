@@ -4,10 +4,11 @@
   "description": "SmartPOS Backend API",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/migrate-existing-users.js && node server.js",
     "dev": "nodemon server.js",
     "init-db": "node scripts/init-database.js",
-    "fix-schema": "node scripts/fix-tenant-schema.js"
+    "fix-schema": "node scripts/fix-tenant-schema.js",
+    "migrate-users": "node scripts/migrate-existing-users.js"
   },
   "keywords": [],
   "author": "",
