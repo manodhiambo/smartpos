@@ -30,34 +30,34 @@ const validateTenantRegistration = validate([
     .trim()
     .notEmpty().withMessage('Business name is required')
     .isLength({ min: 3, max: 255 }).withMessage('Business name must be 3-255 characters'),
-  
+
   body('businessEmail')
     .trim()
     .notEmpty().withMessage('Business email is required')
     .isEmail().withMessage('Invalid email format')
     .normalizeEmail(),
-  
+
   body('businessPhone')
     .trim()
     .notEmpty().withMessage('Business phone is required')
     .matches(/^(\+254|0)[17]\d{8}$/).withMessage('Invalid Kenyan phone number'),
-  
+
   body('businessAddress')
     .trim()
     .notEmpty().withMessage('Business address is required'),
-  
+
   body('adminUsername')
     .trim()
     .notEmpty().withMessage('Admin username is required')
     .isLength({ min: 3, max: 50 }).withMessage('Username must be 3-50 characters')
     .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
-  
+
   body('adminPassword')
     .notEmpty().withMessage('Password is required')
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
     .withMessage('Password must contain uppercase, lowercase, number, and special character'),
-  
+
   body('adminFullName')
     .trim()
     .notEmpty().withMessage('Full name is required')
@@ -71,48 +71,62 @@ const validateLogin = validate([
   body('username')
     .trim()
     .notEmpty().withMessage('Username is required'),
-  
+
   body('password')
     .notEmpty().withMessage('Password is required'),
 ]);
 
 /**
- * Product validation
+ * Product validation - accepts both camelCase and snake_case
  */
-const validateProduct = validate([
-  body('name')
-    .trim()
-    .notEmpty().withMessage('Product name is required')
-    .isLength({ max: 255 }).withMessage('Product name too long'),
-  
-  body('barcode')
-    .trim()
-    .notEmpty().withMessage('Barcode is required')
-    .isLength({ min: 8, max: 50 }).withMessage('Invalid barcode format'),
-  
-  body('category')
-    .trim()
-    .notEmpty().withMessage('Category is required'),
-  
-  body('costPrice')
-    .isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
-  
-  body('sellingPrice')
-    .isFloat({ min: 0 }).withMessage('Selling price must be a positive number')
-    .custom((value, { req }) => {
-      if (parseFloat(value) < parseFloat(req.body.costPrice)) {
-        throw new Error('Selling price cannot be less than cost price');
-      }
-      return true;
-    }),
-  
-  body('vatType')
-    .isIn(['vatable', 'zero_rated', 'exempt']).withMessage('Invalid VAT type'),
-  
-  body('stockQuantity')
-    .optional()
-    .isInt({ min: 0 }).withMessage('Stock quantity must be a positive integer'),
-]);
+const validateProduct = [
+  // Normalize snake_case to camelCase before validation
+  (req, res, next) => {
+    if (req.body.cost_price) req.body.costPrice = req.body.cost_price;
+    if (req.body.selling_price) req.body.sellingPrice = req.body.selling_price;
+    if (req.body.wholesale_price) req.body.wholesalePrice = req.body.wholesale_price;
+    if (req.body.vat_type) req.body.vatType = req.body.vat_type;
+    if (req.body.unit_of_measure) req.body.unitOfMeasure = req.body.unit_of_measure;
+    if (req.body.stock_quantity) req.body.stockQuantity = req.body.stock_quantity;
+    if (req.body.reorder_level) req.body.reorderLevel = req.body.reorder_level;
+    if (req.body.expiry_tracking !== undefined) req.body.expiryTracking = req.body.expiry_tracking;
+    next();
+  },
+  ...validate([
+    body('name')
+      .trim()
+      .notEmpty().withMessage('Product name is required')
+      .isLength({ max: 255 }).withMessage('Product name too long'),
+
+    body('barcode')
+      .trim()
+      .notEmpty().withMessage('Barcode is required')
+      .isLength({ min: 8, max: 50 }).withMessage('Invalid barcode format'),
+
+    body('category')
+      .trim()
+      .notEmpty().withMessage('Category is required'),
+
+    body('costPrice')
+      .isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
+
+    body('sellingPrice')
+      .isFloat({ min: 0 }).withMessage('Selling price must be a positive number')
+      .custom((value, { req }) => {
+        if (parseFloat(value) < parseFloat(req.body.costPrice)) {
+          throw new Error('Selling price cannot be less than cost price');
+        }
+        return true;
+      }),
+
+    body('vatType')
+      .isIn(['vatable', 'zero_rated', 'exempt']).withMessage('Invalid VAT type'),
+
+    body('stockQuantity')
+      .optional()
+      .isInt({ min: 0 }).withMessage('Stock quantity must be a positive integer'),
+  ])
+];
 
 /**
  * Sale validation
@@ -120,22 +134,24 @@ const validateProduct = validate([
 const validateSale = validate([
   body('items')
     .isArray({ min: 1 }).withMessage('At least one item is required'),
-  
+
   body('items.*.productId')
     .isInt({ min: 1 }).withMessage('Invalid product ID'),
-  
+
   body('items.*.quantity')
     .isFloat({ min: 0.01 }).withMessage('Quantity must be greater than 0'),
-  
+
   body('items.*.price')
+    .optional()
     .isFloat({ min: 0 }).withMessage('Price must be positive'),
-  
+
   body('paymentMethod')
     .isIn(['cash', 'mpesa', 'card', 'bank_transfer', 'credit']).withMessage('Invalid payment method'),
-  
+
   body('totalAmount')
+    .optional()
     .isFloat({ min: 0 }).withMessage('Total amount must be positive'),
-  
+
   body('amountPaid')
     .optional()
     .isFloat({ min: 0 }).withMessage('Amount paid must be positive'),
@@ -150,18 +166,18 @@ const validateUser = validate([
     .notEmpty().withMessage('Username is required')
     .isLength({ min: 3, max: 50 }).withMessage('Username must be 3-50 characters')
     .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
-  
+
   body('password')
     .optional()
     .isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-  
+
   body('fullName')
     .trim()
     .notEmpty().withMessage('Full name is required'),
-  
+
   body('role')
     .isIn(['admin', 'manager', 'cashier', 'storekeeper']).withMessage('Invalid role'),
-  
+
   body('email')
     .optional()
     .isEmail().withMessage('Invalid email format')
