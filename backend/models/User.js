@@ -15,6 +15,8 @@ class User {
       role
     } = userData;
 
+    console.log(`\n🔵 Creating user: ${username} for tenant ${tenantId}`);
+
     // Hash password
     const passwordHash = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
@@ -29,6 +31,7 @@ class User {
     }
 
     const tenantSchema = tenantResult.rows[0].tenant_schema;
+    console.log(`  ✓ Tenant schema: ${tenantSchema}`);
 
     // Insert into public.tenant_users
     const publicUserResult = await queryMain(
@@ -40,9 +43,12 @@ class User {
     );
 
     const publicUser = publicUserResult.rows[0];
+    console.log(`  ✅ Created in public.tenant_users (ID: ${publicUser.id})`);
 
     // Also insert into tenant schema users table
     try {
+      console.log(`  🔄 Syncing to ${tenantSchema}.users...`);
+      
       await queryTenant(
         tenantSchema,
         `INSERT INTO users (
@@ -50,9 +56,12 @@ class User {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [username, passwordHash, fullName, email || null, role, 'active', publicUser.created_at]
       );
+      
+      console.log(`  ✅ Synced to ${tenantSchema}.users\n`);
     } catch (error) {
-      console.error('Error creating user in tenant schema:', error);
-      // Don't fail the whole operation if tenant schema insert fails
+      console.error(`  ❌ ERROR syncing to ${tenantSchema}.users:`, error.message);
+      console.error(`  ⚠️  User can login but sales will fail until sync is fixed!\n`);
+      // Don't fail the whole operation
     }
 
     return publicUser;
@@ -166,14 +175,18 @@ class User {
         if (tenantResult.rows.length > 0) {
           const tenantSchema = tenantResult.rows[0].tenant_schema;
           
+          console.log(`🔄 Syncing password update for ${updatedUser.username} to ${tenantSchema}.users`);
+          
           await queryTenant(
             tenantSchema,
             `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2`,
             [passwordHash, updatedUser.username]
           );
+          
+          console.log(`✅ Password synced to ${tenantSchema}.users`);
         }
       } catch (error) {
-        console.error('Error updating password in tenant schema:', error);
+        console.error('❌ Error updating password in tenant schema:', error.message);
       }
     }
 
