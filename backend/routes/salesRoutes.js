@@ -9,14 +9,18 @@ const { salesLimiter } = require('../middleware/rateLimiter');
 router.use(authenticate);
 
 // Create sale (all authenticated users)
-router.post('/', 
+router.post('/',
   salesLimiter,
-  validateSale, 
+  validateSale,
   salesController.createSale
 );
 
 // Get all sales
 router.get('/', salesController.getAllSales);
+
+// ========================================
+// SPECIFIC ROUTES FIRST (before /:id)
+// ========================================
 
 // Get today's summary
 router.get('/summary/today', salesController.getTodaySummary);
@@ -28,23 +32,28 @@ router.get('/report', salesController.getSalesReport);
 router.get('/top-products', salesController.getTopProducts);
 
 // Get cashier performance
-router.get('/cashier-performance', 
-  authorize('admin', 'manager'), 
+router.get('/cashier-performance',
+  authorize('admin', 'manager'),
   salesController.getCashierPerformance
 );
 
-// Get payment method breakdown
+// Get payment method breakdown - BOTH URLs for compatibility
 router.get('/payment-methods', salesController.getSalesByPaymentMethod);
+router.get('/by-payment-method', salesController.getSalesByPaymentMethod);
 
 // Get sale by receipt number
 router.get('/receipt/:receiptNo', salesController.getSaleByReceipt);
+
+// ========================================
+// PARAMETERIZED ROUTES LAST
+// ========================================
 
 // Get sale by ID
 router.get('/:id', salesController.getSaleById);
 
 // Void sale (admin, manager only)
-router.post('/:id/void', 
-  authorize('admin', 'manager'), 
+router.post('/:id/void',
+  authorize('admin', 'manager'),
   salesController.voidSale
 );
 
