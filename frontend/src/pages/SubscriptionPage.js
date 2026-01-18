@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { paymentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FaCheck, FaTimes, FaPhone, FaCreditCard, FaClock } from 'react-icons/fa';
-import { formatCurrency, formatDate } from '../utils/helpers';
+import { formatCurrency, formatDate, formatNumber } from '../utils/helpers'; // Added formatNumber
 import toast from 'react-hot-toast';
 import '../styles/Subscription.css';
 
@@ -36,6 +36,7 @@ const SubscriptionPage = () => {
       setSubscriptionInfo(subRes.data.data);
       setPaymentHistory(paymentsRes.data.data);
     } catch (error) {
+      console.error('Failed to load subscription data:', error);
       toast.error('Failed to load subscription data');
     } finally {
       setLoading(false);
@@ -134,6 +135,14 @@ const SubscriptionPage = () => {
     return features || {};
   };
 
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="subscription-page">
       <div className="page-header">
@@ -214,7 +223,7 @@ const SubscriptionPage = () => {
                 </p>
 
                 <ul className="plan-features">
-                  <li><FaCheck /> Up to {plan.max_users} users</li>
+                  <li><FaCheck /> Up to {formatNumber(plan.max_users)} users</li>
                   <li><FaCheck /> {formatNumber(plan.max_products)} products</li>
                   <li><FaCheck /> {formatNumber(plan.max_transactions_per_month)} transactions/month</li>
                   {features.multi_location ? (
