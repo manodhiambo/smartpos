@@ -77,22 +77,26 @@ const validateLogin = validate([
 ]);
 
 /**
+ * Normalize product fields middleware
+ */
+const normalizeProductFields = (req, res, next) => {
+  if (req.body.cost_price !== undefined) req.body.costPrice = req.body.cost_price;
+  if (req.body.selling_price !== undefined) req.body.sellingPrice = req.body.selling_price;
+  if (req.body.wholesale_price !== undefined) req.body.wholesalePrice = req.body.wholesale_price;
+  if (req.body.vat_type !== undefined) req.body.vatType = req.body.vat_type;
+  if (req.body.unit_of_measure !== undefined) req.body.unitOfMeasure = req.body.unit_of_measure;
+  if (req.body.stock_quantity !== undefined) req.body.stockQuantity = req.body.stock_quantity;
+  if (req.body.reorder_level !== undefined) req.body.reorderLevel = req.body.reorder_level;
+  if (req.body.expiry_tracking !== undefined) req.body.expiryTracking = req.body.expiry_tracking;
+  next();
+};
+
+/**
  * Product validation - accepts both camelCase and snake_case
  */
 const validateProduct = [
-  // Normalize snake_case to camelCase before validation
-  (req, res, next) => {
-    if (req.body.cost_price) req.body.costPrice = req.body.cost_price;
-    if (req.body.selling_price) req.body.sellingPrice = req.body.selling_price;
-    if (req.body.wholesale_price) req.body.wholesalePrice = req.body.wholesale_price;
-    if (req.body.vat_type) req.body.vatType = req.body.vat_type;
-    if (req.body.unit_of_measure) req.body.unitOfMeasure = req.body.unit_of_measure;
-    if (req.body.stock_quantity) req.body.stockQuantity = req.body.stock_quantity;
-    if (req.body.reorder_level) req.body.reorderLevel = req.body.reorder_level;
-    if (req.body.expiry_tracking !== undefined) req.body.expiryTracking = req.body.expiry_tracking;
-    next();
-  },
-  ...validate([
+  normalizeProductFields,
+  validate([
     body('name')
       .trim()
       .notEmpty().withMessage('Product name is required')
@@ -189,6 +193,7 @@ module.exports = {
   validateTenantRegistration,
   validateLogin,
   validateProduct,
+  normalizeProductFields,
   validateSale,
   validateUser
 };
