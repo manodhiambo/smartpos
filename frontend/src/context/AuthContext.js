@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
@@ -17,65 +18,72 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      const savedTenant = localStorage.getItem('tenant');
-
-      if (token && savedUser) {
-        try {
-          // Restore saved user and tenant from localStorage
-          setUser(JSON.parse(savedUser));
-          if (savedTenant) setTenant(JSON.parse(savedTenant));
-
-          // Fetch fresh profile data
-          const response = await authAPI.getProfile();
-          if (response.data?.data?.user) {
-            setUser(response.data.data.user);
-          }
-          if (response.data?.data?.subscription) {
-            setTenant(response.data.data.subscription);
-            localStorage.setItem('tenant', JSON.stringify(response.data.data.subscription));
-          }
-        } catch (error) {
-          console.error('Auth check failed, keeping existing user:', error);
-          // Do NOT logout here to avoid infinite refresh
-        }
-      }
-      setLoading(false);
-    };
-
-    initAuth();
+    checkAuth();
   }, []);
 
-  const login = async (credentials) => {
-    const response = await authAPI.login(credentials);
-    const { token, user: userData, tenant: tenantData } = response.data.data;
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    const savedTenant = localStorage.getItem('tenant');
 
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    if (tenantData) {
-      localStorage.setItem('tenant', JSON.stringify(tenantData));
-      setTenant(tenantData);
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        if (savedTenant) {
+          setTenant(JSON.parse(savedTenant));
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        logout();
+      }
     }
+    setLoading(false);
+  };
 
-    setUser(userData);
-    return userData;
+  const login = async (credentials) => {
+    try {
+      const response = await authAPI.login(credentials);
+      const { token, user: userData, tenant: tenantData } = response.data.data;
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      if (tenantData) {
+        localStorage.setItem('tenant', JSON.stringify(tenantData));
+        setTenant(tenantData);
+      }
+
+      setUser(userData);
+      
+      // Return success response
+      return { success: true, user: userData, tenant: tenantData };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Login failed. Please try again.';
+      toast.error(message);
+      return { success: false, error: message };
+    }
   };
 
   const register = async (data) => {
-    const response = await authAPI.register(data);
-    const { token, user: userData, tenant: tenantData } = response.data.data;
+    try {
+      const response = await authAPI.register(data);
+      const { token, user: userData, tenant: tenantData } = response.data.data;
 
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    if (tenantData) {
-      localStorage.setItem('tenant', JSON.stringify(tenantData));
-      setTenant(tenantData);
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      if (tenantData) {
+        localStorage.setItem('tenant', JSON.stringify(tenantData));
+        setTenant(tenantData);
+      }
+
+      setUser(userData);
+      
+      // Return success response
+      return { success: true, user: userData, tenant: tenantData };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Registration failed. Please try again.';
+      toast.error(message);
+      return { success: false, error: message };
     }
-
-    setUser(userData);
-    return userData;
   };
 
   const logout = () => {
