@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { dashboardAPI } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const NotificationsContext = createContext();
 
@@ -12,16 +13,16 @@ export const useNotifications = () => {
 };
 
 export const NotificationsProvider = ({ children }) => {
+  const { isAuthenticated, user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const fetchIntervalRef = useRef(null);
-  const hasErrorRef = useRef(false);
 
   // Use useCallback to memoize the fetch function
   const fetchNotifications = useCallback(async () => {
-    // Don't retry if we've already had an error
-    if (hasErrorRef.current) {
+    // Only fetch if user is authenticated and not super admin
+    if (!isAuthenticated || user?.isSuperAdmin) {
       return;
     }
 
@@ -45,24 +46,14 @@ export const NotificationsProvider = ({ children }) => {
 
       setNotifications(stockNotifications);
       setUnreadCount(stockNotifications.filter(n => !n.read).length);
-      hasErrorRef.current = false; // Reset error flag on success
     } catch (error) {
-      console.warn('Notifications disabled - endpoint not available');
-      hasErrorRef.current = true; // Stop retrying
-      
-      // Clear any existing interval
-      if (fetchIntervalRef.current) {
-        clearInterval(fetchIntervalRef.current);
-        fetchIntervalRef.current = null;
-      }
-      
-      // Set empty notifications
+      // Silently fail - don't spam console
       setNotifications([]);
       setUnreadCount(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, user]);
 
   // Mark notification as read
   const markAsRead = useCallback((id) => {
@@ -88,21 +79,34 @@ export const NotificationsProvider = ({ children }) => {
     setUnreadCount(0);
   }, []);
 
-  // Fetch on mount only
+  // Fetch only when authenticated
   useEffect(() => {
+    if (!isAuthenticated || user?.isSuperAdmin) {
+      // Clear notifications if not authenticated
+      setNotifications([]);
+      setUnreadCount(0);
+      
+      // Clear any existing interval
+      if (fetchIntervalRef.current) {
+        clearInterval(fetchIntervalRef.current);
+        fetchIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Fetch immediately when user logs in
     fetchNotifications();
     
-    // Only set interval if first fetch succeeds
-    if (!hasErrorRef.current) {
-      fetchIntervalRef.current = setInterval(fetchNotifications, 10 * 60 * 1000); // 10 minutes
-    }
+    // Set up interval for periodic fetching (every 10 minutes)
+    fetchIntervalRef.current = setInterval(fetchNotifications, 10 * 60 * 1000);
     
     return () => {
       if (fetchIntervalRef.current) {
         clearInterval(fetchIntervalRef.current);
+        fetchIntervalRef.current = null;
       }
     };
-  }, [fetchNotifications]);
+  }, [isAuthenticated, user, fetchNotifications]);
 
   const value = {
     notifications,
