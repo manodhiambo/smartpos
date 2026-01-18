@@ -33,12 +33,12 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    
+
     // Handle subscription expired
     if (error.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
       window.location.href = '/subscription';
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -112,6 +112,7 @@ export const expensesAPI = {
 // Dashboard API
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
+  getOverview: () => api.get('/dashboard/stats'), // ADD THIS - alias for getStats
   getFinancialSummary: (params) => api.get('/dashboard/financial-summary', { params }),
 };
 
