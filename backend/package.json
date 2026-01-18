@@ -9,7 +9,8 @@
     "init-db": "node scripts/init-database.js",
     "fix-schema": "node scripts/fix-tenant-schema.js",
     "migrate-users": "node scripts/migrate-existing-users.js",
-    "emergency-sync": "node scripts/emergency-password-sync.js"
+    "emergency-sync": "node scripts/emergency-password-sync.js",
+    "create-cashier": "node scripts/create-test-cashier.js"
   },
   "keywords": [],
   "author": "",
