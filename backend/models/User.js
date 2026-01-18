@@ -53,7 +53,6 @@ class User {
     } catch (error) {
       console.error('Error creating user in tenant schema:', error);
       // Don't fail the whole operation if tenant schema insert fails
-      // The public.tenant_users record is the source of truth
     }
 
     return publicUser;
@@ -115,6 +114,7 @@ class User {
     const fields = [];
     const values = [];
     let paramCount = 1;
+    let passwordHash = null;
 
     if (updateData.fullName) {
       fields.push(`full_name = $${paramCount++}`);
@@ -137,7 +137,7 @@ class User {
     }
 
     if (updateData.password) {
-      const passwordHash = await bcrypt.hash(updateData.password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
+      passwordHash = await bcrypt.hash(updateData.password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
       fields.push(`password_hash = $${paramCount++}`);
       values.push(passwordHash);
     }
@@ -153,7 +153,31 @@ class User {
       values
     );
 
-    return result.rows[0];
+    const updatedUser = result.rows[0];
+
+    // If password was updated, sync to tenant schema
+    if (passwordHash && updatedUser) {
+      try {
+        const tenantResult = await queryMain(
+          'SELECT tenant_schema FROM public.tenants WHERE id = $1',
+          [updatedUser.tenant_id]
+        );
+
+        if (tenantResult.rows.length > 0) {
+          const tenantSchema = tenantResult.rows[0].tenant_schema;
+          
+          await queryTenant(
+            tenantSchema,
+            `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE username = $2`,
+            [passwordHash, updatedUser.username]
+          );
+        }
+      } catch (error) {
+        console.error('Error updating password in tenant schema:', error);
+      }
+    }
+
+    return updatedUser;
   }
 
   /**
