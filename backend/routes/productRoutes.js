@@ -3,14 +3,16 @@ const router = express.Router();
 const productController = require('../controllers/productController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateProduct } = require('../utils/validators');
+const { logRequestBody } = require('../middleware/requestLogger');
 
 // All routes require authentication
 router.use(authenticate);
 
 // Create product (admin, manager, storekeeper)
-router.post('/', 
-  authorize('admin', 'manager', 'storekeeper'), 
-  validateProduct, 
+router.post('/',
+  authorize('admin', 'manager', 'storekeeper'),
+  logRequestBody,  // Add logging
+  validateProduct,
   productController.createProduct
 );
 
@@ -33,14 +35,14 @@ router.get('/barcode/:barcode', productController.getProductByBarcode);
 router.get('/:id', productController.getProductById);
 
 // Update product (admin, manager, storekeeper)
-router.put('/:id', 
-  authorize('admin', 'manager', 'storekeeper'), 
+router.put('/:id',
+  authorize('admin', 'manager', 'storekeeper'),
   productController.updateProduct
 );
 
 // Delete product (admin, manager)
-router.delete('/:id', 
-  authorize('admin', 'manager'), 
+router.delete('/:id',
+  authorize('admin', 'manager'),
   productController.deleteProduct
 );
 
