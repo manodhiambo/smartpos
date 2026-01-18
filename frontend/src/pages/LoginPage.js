@@ -34,18 +34,20 @@ const LoginPage = () => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.businessEmail.trim()) {
+    if (!formData.businessEmail) {
       newErrors.businessEmail = 'Business email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.businessEmail)) {
-      newErrors.businessEmail = 'Invalid email format';
+      newErrors.businessEmail = 'Please enter a valid email';
     }
 
-    if (!formData.username.trim()) {
+    if (!formData.username) {
       newErrors.username = 'Username is required';
     }
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
     }
 
     setErrors(newErrors);
@@ -54,7 +56,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    
     if (!validateForm()) return;
 
     setLoading(true);
@@ -62,7 +64,12 @@ const LoginPage = () => {
     setLoading(false);
 
     if (result.success) {
-      navigate('/dashboard');
+      // Redirect based on user role
+      if (result.user.isSuperAdmin || result.user.role === 'super_admin') {
+        navigate('/super-admin');
+      } else {
+        navigate('/dashboard');
+      }
     }
   };
 
@@ -86,11 +93,11 @@ const LoginPage = () => {
               </div>
               <div className="auth-feature-item">
                 <div className="feature-check">✓</div>
-                <span>Real-time Updates</span>
+                <span>Real-time Analytics</span>
               </div>
               <div className="auth-feature-item">
                 <div className="feature-check">✓</div>
-                <span>24/7 Access</span>
+                <span>Multi-user Support</span>
               </div>
             </div>
           </div>
@@ -98,8 +105,8 @@ const LoginPage = () => {
 
         <div className="auth-right">
           <div className="auth-form-container">
-            <h2 className="auth-form-title">Sign In</h2>
-            <p className="auth-form-subtitle">Enter your credentials to access your account</p>
+            <h2 className="auth-title">Sign In</h2>
+            <p className="auth-subtitle">Enter your credentials to access your account</p>
 
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="input-group">
@@ -153,6 +160,7 @@ const LoginPage = () => {
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={loading}
                   >
                     {showPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
@@ -160,33 +168,14 @@ const LoginPage = () => {
                 {errors.password && <span className="input-error">{errors.password}</span>}
               </div>
 
-              <button 
-                type="submit" 
-                className="btn btn-primary btn-block"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <div className="spinner-small"></div>
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
+              <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                {loading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
 
-            <div className="auth-divider">
-              <span>Don't have an account?</span>
-            </div>
-
-            <Link to="/register" className="btn btn-outline btn-block">
-              Create Account
-            </Link>
-
-            <div className="auth-footer-links">
-              <Link to="/" className="auth-link">← Back to Home</Link>
-            </div>
+            <p className="auth-footer">
+              Don't have an account? <Link to="/register">Register here</Link>
+            </p>
           </div>
         </div>
       </div>

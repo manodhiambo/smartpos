@@ -24,6 +24,15 @@ import SettingsPage from './pages/SettingsPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
+// Super Admin Route wrapper
+const SuperAdminRoute = ({ children }) => {
+  return (
+    <ProtectedRoute allowedRoles={['super_admin']}>
+      {children}
+    </ProtectedRoute>
+  );
+};
+
 function App() {
   return (
     <Router>
@@ -38,9 +47,9 @@ function App() {
 
             {/* Super Admin Routes */}
             <Route path="/super-admin" element={
-              <ProtectedRoute allowedRoles={['super_admin']}>
+              <SuperAdminRoute>
                 <Layout><SuperAdminDashboard /></Layout>
-              </ProtectedRoute>
+              </SuperAdminRoute>
             } />
 
             {/* Subscription Page (accessible even if expired) */}
@@ -117,7 +126,7 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* Redirect */}
+            {/* Redirect based on role */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </NotificationsProvider>
