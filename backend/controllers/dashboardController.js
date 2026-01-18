@@ -1,8 +1,7 @@
+const { queryTenant } = require('../config/database');
 const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const Expense = require('../models/Expense');
-const Purchase = require('../models/Purchase');
-const { queryTenant } = require('../config/database');
 
 /**
  * Get dashboard overview
@@ -20,7 +19,7 @@ exports.getDashboardOverview = async (req, res, next) => {
     // Get today's sales summary
     const todaySales = await Sale.getTodaySummary(tenantSchema);
 
-    // Get low stock count
+    // Get low stock products
     const lowStockProducts = await Product.getLowStock(tenantSchema);
 
     // Get today's expenses
@@ -75,6 +74,7 @@ exports.getDashboardOverview = async (req, res, next) => {
           activeProducts: parseInt(productsResult.rows[0].count) || 0,
           lowStockCount: lowStockProducts.length
         },
+        lowStockItems: lowStockProducts, // Added for notifications
         recentSales: recentSalesResult.rows,
         paymentBreakdown: paymentBreakdown
       }
@@ -91,47 +91,29 @@ exports.getDashboardOverview = async (req, res, next) => {
 exports.getSalesAnalytics = async (req, res, next) => {
   try {
     const { tenantSchema } = req.user;
-    const { period = 'week' } = req.query; // week, month, year
+    const { startDate, endDate } = req.query;
 
-    let startDate = new Date();
-    const endDate = new Date();
+    const start = startDate ? new Date(startDate) : new Date();
+    start.setHours(0, 0, 0, 0);
 
-    switch (period) {
-      case 'week':
-        startDate.setDate(startDate.getDate() - 7);
-        break;
-      case 'month':
-        startDate.setMonth(startDate.getMonth() - 1);
-        break;
-      case 'year':
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(startDate.getDate() - 7);
-    }
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
 
-    // Get daily sales breakdown
-    const salesReport = await Sale.getReport(tenantSchema, startDate, endDate);
+    // Get sales report
+    const salesReport = await Sale.getReport(tenantSchema, start, end);
 
     // Get top products
-    const topProducts = await Sale.getTopProducts(tenantSchema, 10, startDate, endDate);
+    const topProducts = await Sale.getTopProducts(tenantSchema, start, end);
 
-    // Get cashier performance
-    const cashierPerformance = await Sale.getCashierPerformance(
-      tenantSchema,
-      startDate,
-      endDate
-    );
+    // Get payment method breakdown
+    const paymentBreakdown = await Sale.getByPaymentMethod(tenantSchema, start, end);
 
     res.json({
       success: true,
       data: {
-        period,
-        startDate,
-        endDate,
-        salesByDay: salesReport,
+        salesReport,
         topProducts,
-        cashierPerformance
+        paymentBreakdown
       }
     });
   } catch (error) {
@@ -148,37 +130,23 @@ exports.getInventoryAlerts = async (req, res, next) => {
     const { tenantSchema } = req.user;
 
     // Get low stock products
-    const lowStock = await Product.getLowStock(tenantSchema);
+    const lowStockProducts = await Product.getLowStock(tenantSchema);
 
     // Get out of stock products
     const outOfStockResult = await queryTenant(
       tenantSchema,
-      `SELECT * FROM products 
-       WHERE stock_quantity <= 0 AND status = 'active'
-       ORDER BY name`,
-      []
-    );
-
-    // Get negative stock (error condition)
-    const negativeStockResult = await queryTenant(
-      tenantSchema,
-      `SELECT * FROM products 
-       WHERE stock_quantity < 0 AND status = 'active'
-       ORDER BY stock_quantity`,
+      `SELECT * FROM products
+       WHERE stock_quantity = 0
+       AND status = 'active'
+       ORDER BY name ASC`,
       []
     );
 
     res.json({
       success: true,
       data: {
-        lowStock: lowStock,
-        outOfStock: outOfStockResult.rows,
-        negativeStock: negativeStockResult.rows,
-        alerts: {
-          lowStockCount: lowStock.length,
-          outOfStockCount: outOfStockResult.rows.length,
-          negativeStockCount: negativeStockResult.rows.length
-        }
+        lowStock: lowStockProducts,
+        outOfStock: outOfStockResult.rows
       }
     });
   } catch (error) {
@@ -195,62 +163,47 @@ exports.getFinancialSummary = async (req, res, next) => {
     const { tenantSchema } = req.user;
     const { startDate, endDate } = req.query;
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Start date and end date are required'
-      });
-    }
+    const start = startDate ? new Date(startDate) : new Date();
+    start.setMonth(start.getMonth() - 1);
+    start.setHours(0, 0, 0, 0);
 
-    // Get sales summary
-    const salesResult = await queryTenant(
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    // Get total revenue
+    const revenueResult = await queryTenant(
       tenantSchema,
-      `SELECT 
-        COUNT(*) as total_transactions,
-        COALESCE(SUM(total_amount), 0) as total_revenue,
-        COALESCE(SUM(vat_amount), 0) as vat_collected
+      `SELECT
+        SUM(total_amount) as total_revenue,
+        COUNT(*) as total_transactions
        FROM sales
-       WHERE created_at >= $1 AND created_at <= $2
+       WHERE created_at BETWEEN $1 AND $2
        AND status = 'completed'`,
-      [startDate, endDate]
+      [start, end]
     );
 
-    // Get purchases summary
-    const purchasesSummary = await Purchase.getSummary(tenantSchema, startDate, endDate);
+    // Get total expenses
+    const expensesResult = await queryTenant(
+      tenantSchema,
+      `SELECT
+        SUM(amount) as total_expenses,
+        COUNT(*) as total_count
+       FROM expenses
+       WHERE expense_date BETWEEN $1 AND $2`,
+      [start, end]
+    );
 
-    // Get expenses summary
-    const expensesSummary = await Expense.getTotalExpenses(tenantSchema, startDate, endDate);
-
-    // Calculate profit (simplified)
-    const revenue = parseFloat(salesResult.rows[0].total_revenue) || 0;
-    const purchases = parseFloat(purchasesSummary.total_cost) || 0;
-    const expenses = parseFloat(expensesSummary.total_amount) || 0;
-    const grossProfit = revenue - purchases;
-    const netProfit = grossProfit - expenses;
+    const revenue = parseFloat(revenueResult.rows[0].total_revenue) || 0;
+    const expenses = parseFloat(expensesResult.rows[0].total_expenses) || 0;
+    const profit = revenue - expenses;
 
     res.json({
       success: true,
       data: {
-        period: { startDate, endDate },
-        revenue: {
-          total: revenue,
-          transactions: parseInt(salesResult.rows[0].total_transactions) || 0,
-          vatCollected: parseFloat(salesResult.rows[0].vat_collected) || 0
-        },
-        purchases: {
-          total: purchases,
-          paid: parseFloat(purchasesSummary.total_paid) || 0,
-          balance: parseFloat(purchasesSummary.total_balance) || 0
-        },
-        expenses: {
-          total: expenses,
-          count: parseInt(expensesSummary.total_count) || 0
-        },
-        profit: {
-          gross: grossProfit,
-          net: netProfit,
-          margin: revenue > 0 ? ((netProfit / revenue) * 100).toFixed(2) : 0
-        }
+        revenue,
+        expenses,
+        profit,
+        transactions: parseInt(revenueResult.rows[0].total_transactions) || 0
       }
     });
   } catch (error) {
@@ -260,24 +213,29 @@ exports.getFinancialSummary = async (req, res, next) => {
 };
 
 /**
- * Get hourly sales trend (for today)
+ * Get hourly sales trend
  */
 exports.getHourlySalesTrend = async (req, res, next) => {
   try {
     const { tenantSchema } = req.user;
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     const result = await queryTenant(
       tenantSchema,
-      `SELECT 
+      `SELECT
         EXTRACT(HOUR FROM created_at) as hour,
-        COUNT(*) as transactions,
-        SUM(total_amount) as revenue
+        COUNT(*) as sales_count,
+        SUM(total_amount) as total_sales
        FROM sales
-       WHERE DATE(created_at) = CURRENT_DATE
+       WHERE created_at >= $1 AND created_at < $2
        AND status = 'completed'
        GROUP BY EXTRACT(HOUR FROM created_at)
        ORDER BY hour`,
-      []
+      [today, tomorrow]
     );
 
     res.json({
@@ -289,5 +247,3 @@ exports.getHourlySalesTrend = async (req, res, next) => {
     next(error);
   }
 };
-
-module.exports = exports;
