@@ -104,10 +104,14 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('tenant', JSON.stringify(tenantData));
   };
 
+  // Computed value for authentication status
+  const isAuthenticated = !!user && !!localStorage.getItem('token');
+
   const value = {
     user,
     tenant,
     loading,
+    isAuthenticated, // Add this
     login,
     register,
     logout,
