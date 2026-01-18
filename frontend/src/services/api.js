@@ -112,7 +112,7 @@ export const expensesAPI = {
 // Dashboard API
 export const dashboardAPI = {
   getStats: () => api.get('/dashboard/stats'),
-  getOverview: () => api.get('/dashboard/stats'), // ADD THIS - alias for getStats
+  getOverview: () => api.get('/dashboard/stats'),
   getFinancialSummary: (params) => api.get('/dashboard/financial-summary', { params }),
 };
 
@@ -144,12 +144,26 @@ export const paymentsAPI = {
 
 // Super Admin API
 export const superAdminAPI = {
+  // Dashboard & Stats
   getDashboardStats: () => api.get('/super-admin/stats'),
+  
+  // Tenants Management
   getAllTenants: (params) => api.get('/super-admin/tenants', { params }),
   getTenantDetails: (tenantId) => api.get(`/super-admin/tenants/${tenantId}`),
   suspendTenant: (tenantId, reason) => api.post(`/super-admin/tenants/${tenantId}/suspend`, { reason }),
   activateTenant: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/activate`),
+  assignPlan: (tenantId, data) => api.post(`/super-admin/tenants/${tenantId}/assign-plan`, data),
+  extendTrial: (tenantId, days) => api.post(`/super-admin/tenants/${tenantId}/extend-trial`, { days }),
+  recordPayment: (tenantId, data) => api.post(`/super-admin/tenants/${tenantId}/record-payment`, data),
+  
+  // Payments
   getAllPayments: (params) => api.get('/super-admin/payments', { params }),
+  
+  // Subscription Plans Management
+  getAllPlans: () => api.get('/super-admin/plans'),
+  createPlan: (data) => api.post('/super-admin/plans', data),
+  updatePlan: (planId, data) => api.put(`/super-admin/plans/${planId}`, data),
+  deletePlan: (planId) => api.delete(`/super-admin/plans/${planId}`),
 };
 
 export default api;

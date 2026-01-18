@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { superAdminAPI } from '../services/api';
-import { FaStore, FaCheckCircle, FaBan, FaMoneyBillWave, FaChartLine, FaSearch, FaEye } from 'react-icons/fa';
+import { 
+  FaStore, FaCheckCircle, FaBan, FaMoneyBillWave, FaChartLine, 
+  FaEye, FaPlus, FaEdit, FaTrash, FaClock, FaReceipt 
+} from 'react-icons/fa';
 import { formatCurrency, formatNumber, formatDate } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import '../styles/SuperAdmin.css';
@@ -9,6 +12,7 @@ const SuperAdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [filters, setFilters] = useState({
@@ -17,10 +21,21 @@ const SuperAdminDashboard = () => {
   });
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showTenantModal, setShowTenantModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showAssignPlanModal, setShowAssignPlanModal] = useState(false);
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [formData, setFormData] = useState({});
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'plans') {
+      fetchPlans();
+    }
+  }, [activeTab]);
 
   const fetchDashboardData = async () => {
     try {
@@ -38,6 +53,15 @@ const SuperAdminDashboard = () => {
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPlans = async () => {
+    try {
+      const response = await superAdminAPI.getAllPlans();
+      setPlans(response.data.data);
+    } catch (error) {
+      toast.error('Failed to load plans');
     }
   };
 
@@ -74,6 +98,115 @@ const SuperAdminDashboard = () => {
     } catch (error) {
       toast.error('Failed to activate tenant');
     }
+  };
+
+  const handleAssignPlan = async (e) => {
+    e.preventDefault();
+    try {
+      await superAdminAPI.assignPlan(selectedTenant.tenant.id, {
+        plan_name: formData.plan_name,
+        months: formData.months
+      });
+      toast.success('Plan assigned successfully');
+      setShowAssignPlanModal(false);
+      fetchDashboardData();
+      handleViewTenant(selectedTenant.tenant.id);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to assign plan');
+    }
+  };
+
+  const handleExtendTrial = async (tenantId) => {
+    const days = window.prompt('How many days to extend trial?', '30');
+    if (!days) return;
+
+    try {
+      await superAdminAPI.extendTrial(tenantId, parseInt(days));
+      toast.success(`Trial extended by ${days} days`);
+      fetchDashboardData();
+      if (selectedTenant) handleViewTenant(tenantId);
+    } catch (error) {
+      toast.error('Failed to extend trial');
+    }
+  };
+
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    try {
+      await superAdminAPI.recordPayment(selectedTenant.tenant.id, {
+        amount: parseFloat(formData.amount),
+        payment_method: formData.payment_method,
+        reference: formData.reference,
+        notes: formData.notes,
+        months: parseInt(formData.months) || 1
+      });
+      toast.success('Payment recorded successfully');
+      setShowRecordPaymentModal(false);
+      fetchDashboardData();
+      handleViewTenant(selectedTenant.tenant.id);
+    } catch (error) {
+      toast.error('Failed to record payment');
+    }
+  };
+
+  const handleCreatePlan = async (e) => {
+    e.preventDefault();
+    try {
+      await superAdminAPI.createPlan({
+        ...formData,
+        features: formData.features ? JSON.parse(formData.features) : {}
+      });
+      toast.success('Plan created successfully');
+      setShowPlanModal(false);
+      fetchPlans();
+      setFormData({});
+    } catch (error) {
+      toast.error('Failed to create plan');
+    }
+  };
+
+  const handleUpdatePlan = async (e) => {
+    e.preventDefault();
+    try {
+      await superAdminAPI.updatePlan(editingPlan.id, {
+        ...formData,
+        features: formData.features ? JSON.parse(formData.features) : undefined
+      });
+      toast.success('Plan updated successfully');
+      setShowPlanModal(false);
+      setEditingPlan(null);
+      fetchPlans();
+      setFormData({});
+    } catch (error) {
+      toast.error('Failed to update plan');
+    }
+  };
+
+  const handleDeletePlan = async (planId, planName) => {
+    if (!window.confirm(`Delete plan "${planName}"? This will deactivate it.`)) return;
+
+    try {
+      await superAdminAPI.deletePlan(planId);
+      toast.success('Plan deactivated successfully');
+      fetchPlans();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete plan');
+    }
+  };
+
+  const openEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setFormData({
+      display_name: plan.display_name,
+      price_monthly: plan.price_monthly,
+      price_yearly: plan.price_yearly,
+      max_users: plan.max_users,
+      max_products: plan.max_products,
+      max_transactions_per_month: plan.max_transactions_per_month,
+      features: JSON.stringify(plan.features, null, 2),
+      is_active: plan.is_active
+    });
+    setShowPlanModal(true);
   };
 
   if (loading) {
@@ -167,7 +300,7 @@ const SuperAdminDashboard = () => {
               <span className="distribution-plan">{plan.display_name || plan.subscription_plan}</span>
               <span className="distribution-count">{formatNumber(plan.count)} tenants</span>
               <div className="distribution-bar">
-                <div 
+                <div
                   className="distribution-fill"
                   style={{ width: `${(plan.count / stats.tenants.total_tenants) * 100}%` }}
                 />
@@ -179,23 +312,29 @@ const SuperAdminDashboard = () => {
 
       {/* Tabs */}
       <div className="admin-tabs">
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
           Overview
         </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'tenants' ? 'active' : ''}`}
           onClick={() => setActiveTab('tenants')}
         >
           All Tenants
         </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
           onClick={() => setActiveTab('payments')}
         >
           Payments
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'plans' ? 'active' : ''}`}
+          onClick={() => setActiveTab('plans')}
+        >
+          Subscription Plans
         </button>
       </div>
 
@@ -205,16 +344,16 @@ const SuperAdminDashboard = () => {
           <div className="section-header">
             <h2>All Tenants</h2>
             <div className="filters">
-              <select 
-                value={filters.status} 
+              <select
+                value={filters.status}
                 onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
               >
                 <option value="">All Status</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
               </select>
-              <select 
-                value={filters.plan} 
+              <select
+                value={filters.plan}
                 onChange={(e) => setFilters(prev => ({ ...prev, plan: e.target.value }))}
               >
                 <option value="">All Plans</option>
@@ -343,89 +482,4 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      {/* Tenant Details Modal */}
-      {showTenantModal && selectedTenant && (
-        <div className="modal-overlay" onClick={() => setShowTenantModal(false)}>
-          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{selectedTenant.tenant.business_name}</h2>
-              <button className="modal-close" onClick={() => setShowTenantModal(false)}>×</button>
-            </div>
-
-            <div className="tenant-details">
-              <div className="details-section">
-                <h3>Business Information</h3>
-                <div className="details-grid">
-                  <div className="detail-item">
-                    <label>Business Email:</label>
-                    <span>{selectedTenant.tenant.business_email}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Phone:</label>
-                    <span>{selectedTenant.tenant.business_phone || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Plan:</label>
-                    <span className="badge badge-info">{selectedTenant.tenant.display_name}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Status:</label>
-                    <span className={`badge badge-${selectedTenant.tenant.subscription_status === 'active' ? 'success' : 'danger'}`}>
-                      {selectedTenant.tenant.subscription_status}
-                    </span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Created:</label>
-                    <span>{formatDate(selectedTenant.tenant.created_at)}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Subscription Ends:</label>
-                    <span>
-                      {formatDate(selectedTenant.tenant.is_trial 
-                        ? selectedTenant.tenant.trial_ends_at 
-                        : selectedTenant.tenant.subscription_ends_at)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="details-section">
-                <h3>Recent Payments</h3>
-                <table className="mini-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedTenant.recentPayments?.map((payment) => (
-                      <tr key={payment.id}>
-                        <td>{formatDate(payment.created_at)}</td>
-                        <td>{formatCurrency(payment.amount)}</td>
-                        <td>
-                          <span className={`badge badge-${payment.status === 'completed' ? 'success' : 'warning'}`}>
-                            {payment.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowTenantModal(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default SuperAdminDashboard;
+      {/* Plans Management Tab - CONTINUED IN NEXT MESSAGE */}
