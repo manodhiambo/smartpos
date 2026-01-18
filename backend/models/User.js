@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { queryMain } = require('../config/database');
+const { queryMain, queryTenant } = require('../config/database');
 
 class User {
   /**
@@ -18,7 +18,20 @@ class User {
     // Hash password
     const passwordHash = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
-    const result = await queryMain(
+    // Get tenant schema
+    const tenantResult = await queryMain(
+      'SELECT tenant_schema FROM public.tenants WHERE id = $1',
+      [tenantId]
+    );
+
+    if (tenantResult.rows.length === 0) {
+      throw new Error('Tenant not found');
+    }
+
+    const tenantSchema = tenantResult.rows[0].tenant_schema;
+
+    // Insert into public.tenant_users
+    const publicUserResult = await queryMain(
       `INSERT INTO public.tenant_users (
         tenant_id, username, password_hash, full_name, email, role, status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -26,7 +39,24 @@ class User {
       [tenantId, username, passwordHash, fullName, email || null, role, 'active']
     );
 
-    return result.rows[0];
+    const publicUser = publicUserResult.rows[0];
+
+    // Also insert into tenant schema users table
+    try {
+      await queryTenant(
+        tenantSchema,
+        `INSERT INTO users (
+          username, password_hash, full_name, email, role, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [username, passwordHash, fullName, email || null, role, 'active', publicUser.created_at]
+      );
+    } catch (error) {
+      console.error('Error creating user in tenant schema:', error);
+      // Don't fail the whole operation if tenant schema insert fails
+      // The public.tenant_users record is the source of truth
+    }
+
+    return publicUser;
   }
 
   /**
@@ -116,7 +146,7 @@ class User {
     values.push(userId);
 
     const result = await queryMain(
-      `UPDATE public.tenant_users 
+      `UPDATE public.tenant_users
        SET ${fields.join(', ')}
        WHERE id = $${paramCount}
        RETURNING id, tenant_id, username, full_name, email, role, status, updated_at`,
@@ -172,7 +202,7 @@ class User {
    */
   static async delete(userId) {
     const result = await queryMain(
-      `UPDATE public.tenant_users 
+      `UPDATE public.tenant_users
        SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING id`,
