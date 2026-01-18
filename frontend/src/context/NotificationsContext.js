@@ -1,13 +1,5 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useRef
-} from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { dashboardAPI } from '../services/api';
-import { useAuth } from './AuthContext';
 
 const NotificationsContext = createContext();
 
@@ -20,26 +12,27 @@ export const useNotifications = () => {
 };
 
 export const NotificationsProvider = ({ children }) => {
-  const { user } = useAuth();
-
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const fetchIntervalRef = useRef(null);
+  const hasErrorRef = useRef(false);
 
-  // Prevent overlapping requests
-  const isFetchingRef = useRef(false);
-
+  // Use useCallback to memoize the fetch function
   const fetchNotifications = useCallback(async () => {
-    if (!user || isFetchingRef.current) return;
-
-    isFetchingRef.current = true;
+    // Don't retry if we've already had an error
+    if (hasErrorRef.current) {
+      return;
+    }
 
     try {
       setLoading(true);
-
+      
+      // Get low stock alerts
       const lowStockRes = await dashboardAPI.getStats();
-      const lowStockItems = lowStockRes.data?.data?.lowStockItems || [];
-
+      const lowStockItems = lowStockRes.data.data.lowStockItems || [];
+      
+      // Convert to notifications format
       const stockNotifications = lowStockItems.map(item => ({
         id: `stock-${item.id}`,
         type: 'low_stock',
@@ -52,14 +45,26 @@ export const NotificationsProvider = ({ children }) => {
 
       setNotifications(stockNotifications);
       setUnreadCount(stockNotifications.filter(n => !n.read).length);
+      hasErrorRef.current = false; // Reset error flag on success
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
+      console.warn('Notifications disabled - endpoint not available');
+      hasErrorRef.current = true; // Stop retrying
+      
+      // Clear any existing interval
+      if (fetchIntervalRef.current) {
+        clearInterval(fetchIntervalRef.current);
+        fetchIntervalRef.current = null;
+      }
+      
+      // Set empty notifications
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
-      isFetchingRef.current = false;
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
+  // Mark notification as read
   const markAsRead = useCallback((id) => {
     setNotifications(prev =>
       prev.map(notif =>
@@ -69,6 +74,7 @@ export const NotificationsProvider = ({ children }) => {
     setUnreadCount(prev => Math.max(0, prev - 1));
   }, []);
 
+  // Mark all as read
   const markAllAsRead = useCallback(() => {
     setNotifications(prev =>
       prev.map(notif => ({ ...notif, read: true }))
@@ -76,20 +82,27 @@ export const NotificationsProvider = ({ children }) => {
     setUnreadCount(0);
   }, []);
 
+  // Clear all notifications
   const clearAll = useCallback(() => {
     setNotifications([]);
     setUnreadCount(0);
   }, []);
 
+  // Fetch on mount only
   useEffect(() => {
-    if (!user) return;
-
     fetchNotifications();
-
-    const interval = setInterval(fetchNotifications, 10 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [user, fetchNotifications]);
+    
+    // Only set interval if first fetch succeeds
+    if (!hasErrorRef.current) {
+      fetchIntervalRef.current = setInterval(fetchNotifications, 10 * 60 * 1000); // 10 minutes
+    }
+    
+    return () => {
+      if (fetchIntervalRef.current) {
+        clearInterval(fetchIntervalRef.current);
+      }
+    };
+  }, [fetchNotifications]);
 
   const value = {
     notifications,
