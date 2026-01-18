@@ -12,8 +12,12 @@ const validate = (validations) => {
       return next();
     }
 
+    // Log validation errors for debugging
+    console.log('Validation Errors:', JSON.stringify(errors.array(), null, 2));
+
     return res.status(400).json({
       success: false,
+      message: 'Validation failed',
       errors: errors.array().map(err => ({
         field: err.param,
         message: err.msg
@@ -105,7 +109,7 @@ const validateProduct = [
     body('barcode')
       .trim()
       .notEmpty().withMessage('Barcode is required')
-      .isLength({ min: 8, max: 50 }).withMessage('Invalid barcode format'),
+      .isLength({ min: 3, max: 50 }).withMessage('Barcode must be 3-50 characters'),
 
     body('category')
       .trim()
