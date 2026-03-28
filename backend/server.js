@@ -5,8 +5,10 @@ const compression = require('compression');
 const morgan = require('morgan');
 require('dotenv').config();
 
-const { testConnection } = require('./config/database');
+const { testConnection, queryMain } = require('./config/database');
 const routes = require('./routes');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -67,6 +69,17 @@ const startServer = async () => {
     // Test database connection
     await testConnection();
     console.log('✅ Database connected');
+
+    // Run pending migrations
+    try {
+      const migrationSql = fs.readFileSync(
+        path.join(__dirname, 'migrations/add-subscriptions.sql'), 'utf8'
+      );
+      await queryMain(migrationSql);
+      console.log('✅ Database migrations applied');
+    } catch (migrationError) {
+      console.warn('⚠️  Migration warning:', migrationError.message);
+    }
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`);
