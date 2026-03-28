@@ -11,12 +11,6 @@ const DEMO_CREDENTIALS = [
     username: 'Admin',
     password: 'Mycat@95',
   },
-  {
-    label: 'Super Admin',
-    businessEmail: 'superadmin@smartpos.com',
-    username: 'SuperAdmin',
-    password: 'SuperAdmin@2025',
-  },
 ];
 
 const LoginPage = () => {
