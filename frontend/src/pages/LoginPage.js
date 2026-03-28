@@ -11,12 +11,6 @@ const DEMO_CREDENTIALS = [
     username: 'Admin',
     password: 'Test@2025',
   },
-  {
-    label: 'Super Admin',
-    businessEmail: 'helvinotechltd@gmail.com',
-    username: 'SuperAdmin',
-    password: 'Mycat@95',
-  },
 ];
 
 const LoginPage = () => {
