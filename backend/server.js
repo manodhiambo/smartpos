@@ -67,8 +67,8 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     // Test database connection
-    await testConnection();
-    console.log('✅ Database connected');
+    const dbOk = await testConnection();
+    if (!dbOk) throw new Error('Database connection failed - check DATABASE_URL');
 
     // Run pending migrations
     try {

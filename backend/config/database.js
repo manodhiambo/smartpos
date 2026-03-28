@@ -1,4 +1,17 @@
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+// Force DATABASE_URL from .env file to override any stale value set in Render dashboard
+try {
+  const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
+  const match = envContent.match(/^DATABASE_URL=(.+)$/m);
+  if (match) {
+    process.env.DATABASE_URL = match[1].trim();
+  }
+} catch (e) {
+  // .env not present, rely on environment variable as-is
+}
 
 // Parse DATABASE_URL for production or use individual env vars
 const getDatabaseConfig = () => {
