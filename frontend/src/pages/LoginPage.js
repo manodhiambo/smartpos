@@ -4,6 +4,21 @@ import { useAuth } from '../context/AuthContext';
 import { FaShoppingCart, FaEnvelope, FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import '../styles/AuthPages.css';
 
+const DEMO_CREDENTIALS = [
+  {
+    label: 'Demo Admin',
+    businessEmail: 'demo@smartpos.com',
+    username: 'Admin',
+    password: 'Mycat@95',
+  },
+  {
+    label: 'Super Admin',
+    businessEmail: 'superadmin@smartpos.com',
+    username: 'SuperAdmin',
+    password: 'SuperAdmin@2025',
+  },
+];
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -15,6 +30,15 @@ const LoginPage = () => {
     password: ''
   });
   const [errors, setErrors] = useState({});
+
+  const fillCredentials = (cred) => {
+    setFormData({
+      businessEmail: cred.businessEmail,
+      username: cred.username,
+      password: cred.password,
+    });
+    setErrors({});
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -107,6 +131,23 @@ const LoginPage = () => {
           <div className="auth-form-container">
             <h2 className="auth-title">Sign In</h2>
             <p className="auth-subtitle">Enter your credentials to access your account</p>
+
+            <div className="demo-credentials">
+              <p className="demo-credentials-label">Quick fill with demo credentials:</p>
+              <div className="demo-credentials-buttons">
+                {DEMO_CREDENTIALS.map((cred) => (
+                  <button
+                    key={cred.label}
+                    type="button"
+                    className="demo-credential-btn"
+                    onClick={() => fillCredentials(cred)}
+                    disabled={loading}
+                  >
+                    {cred.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="input-group">
