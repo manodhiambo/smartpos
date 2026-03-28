@@ -482,4 +482,349 @@ const SuperAdminDashboard = () => {
         </div>
       )}
 
-      {/* Plans Management Tab - CONTINUED IN NEXT MESSAGE */}
+      {/* Plans Management Tab */}
+      {activeTab === 'plans' && (
+        <div className="plans-section">
+          <div className="section-header">
+            <h2>Subscription Plans</h2>
+            <button
+              className="btn btn-primary"
+              onClick={() => { setEditingPlan(null); setFormData({}); setShowPlanModal(true); }}
+            >
+              <FaPlus /> Add Plan
+            </button>
+          </div>
+          <div className="plans-grid">
+            {plans.map((plan) => (
+              <div key={plan.id} className={`plan-card ${!plan.is_active ? 'inactive' : ''}`}>
+                <div className="plan-card-header">
+                  <h3>{plan.display_name}</h3>
+                  <span className={`badge ${plan.is_active ? 'badge-success' : 'badge-danger'}`}>
+                    {plan.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="plan-card-body">
+                  <div className="plan-price">
+                    <span className="price-monthly">{formatCurrency(plan.price_monthly)}/mo</span>
+                    {plan.price_yearly && (
+                      <span className="price-yearly">{formatCurrency(plan.price_yearly)}/yr</span>
+                    )}
+                  </div>
+                  <ul className="plan-limits">
+                    <li>Max Users: {plan.max_users || 'Unlimited'}</li>
+                    <li>Max Products: {plan.max_products || 'Unlimited'}</li>
+                    <li>Transactions/mo: {plan.max_transactions_per_month || 'Unlimited'}</li>
+                  </ul>
+                </div>
+                <div className="plan-card-actions">
+                  <button className="btn-icon btn-icon-primary" onClick={() => openEditPlan(plan)} title="Edit">
+                    <FaEdit />
+                  </button>
+                  <button className="btn-icon btn-icon-danger" onClick={() => handleDeletePlan(plan.id, plan.display_name)} title="Deactivate">
+                    <FaTrash />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="overview-section">
+          <h2>Recent Activity</h2>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Business</th>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenants.slice(0, 10).map((tenant) => (
+                  <tr key={tenant.id}>
+                    <td><strong>{tenant.business_name}</strong></td>
+                    <td><span className="badge badge-info">{tenant.plan_display_name || tenant.subscription_plan}</span></td>
+                    <td>
+                      <span className={`badge badge-${tenant.subscription_status === 'active' ? 'success' : 'danger'}`}>
+                        {tenant.subscription_status}
+                      </span>
+                    </td>
+                    <td>{formatDate(tenant.created_at)}</td>
+                    <td>{formatCurrency(tenant.total_revenue || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tenant Detail Modal */}
+      {showTenantModal && selectedTenant && (
+        <div className="modal-overlay" onClick={() => setShowTenantModal(false)}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{selectedTenant.tenant.business_name}</h2>
+              <button className="modal-close" onClick={() => setShowTenantModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="tenant-details-grid">
+                <div className="detail-group">
+                  <label>Email</label>
+                  <span>{selectedTenant.tenant.business_email}</span>
+                </div>
+                <div className="detail-group">
+                  <label>Plan</label>
+                  <span>{selectedTenant.tenant.plan_display_name || selectedTenant.tenant.subscription_plan}</span>
+                </div>
+                <div className="detail-group">
+                  <label>Status</label>
+                  <span className={`badge badge-${selectedTenant.tenant.subscription_status === 'active' ? 'success' : 'danger'}`}>
+                    {selectedTenant.tenant.subscription_status}
+                  </span>
+                </div>
+                <div className="detail-group">
+                  <label>Subscription Ends</label>
+                  <span>{selectedTenant.tenant.subscription_end_date ? formatDate(selectedTenant.tenant.subscription_end_date) : 'N/A'}</span>
+                </div>
+                <div className="detail-group">
+                  <label>Total Revenue</label>
+                  <span>{formatCurrency(selectedTenant.tenant.total_revenue || 0)}</span>
+                </div>
+                <div className="detail-group">
+                  <label>Users</label>
+                  <span>{selectedTenant.stats?.total_users || 0}</span>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn btn-primary" onClick={() => { setShowAssignPlanModal(true); setShowTenantModal(false); setFormData({}); }}>
+                  Assign Plan
+                </button>
+                <button className="btn btn-secondary" onClick={() => handleExtendTrial(selectedTenant.tenant.id)}>
+                  <FaClock /> Extend Trial
+                </button>
+                <button className="btn btn-success" onClick={() => { setShowRecordPaymentModal(true); setShowTenantModal(false); setFormData({}); }}>
+                  <FaReceipt /> Record Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Create/Edit Modal */}
+      {showPlanModal && (
+        <div className="modal-overlay" onClick={() => setShowPlanModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingPlan ? 'Edit Plan' : 'Create Plan'}</h2>
+              <button className="modal-close" onClick={() => setShowPlanModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={editingPlan ? handleUpdatePlan : handleCreatePlan}>
+                <div className="form-group">
+                  <label>Display Name</label>
+                  <input
+                    type="text"
+                    value={formData.display_name || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, display_name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Monthly Price (KES)</label>
+                    <input
+                      type="number"
+                      value={formData.price_monthly || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price_monthly: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Yearly Price (KES)</label>
+                    <input
+                      type="number"
+                      value={formData.price_yearly || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price_yearly: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Max Users</label>
+                    <input
+                      type="number"
+                      value={formData.max_users || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, max_users: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Max Products</label>
+                    <input
+                      type="number"
+                      value={formData.max_products || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, max_products: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Max Transactions/Month</label>
+                  <input
+                    type="number"
+                    value={formData.max_transactions_per_month || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_transactions_per_month: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Features (JSON)</label>
+                  <textarea
+                    rows={4}
+                    value={formData.features || '{}'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, features: e.target.value }))}
+                  />
+                </div>
+                {editingPlan && (
+                  <div className="form-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={formData.is_active !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                      />
+                      {' '}Active
+                    </label>
+                  </div>
+                )}
+                <div className="form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowPlanModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">{editingPlan ? 'Update' : 'Create'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Plan Modal */}
+      {showAssignPlanModal && selectedTenant && (
+        <div className="modal-overlay" onClick={() => setShowAssignPlanModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Assign Plan to {selectedTenant.tenant.business_name}</h2>
+              <button className="modal-close" onClick={() => setShowAssignPlanModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleAssignPlan}>
+                <div className="form-group">
+                  <label>Plan</label>
+                  <select
+                    value={formData.plan_name || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, plan_name: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select Plan</option>
+                    <option value="trial">Trial</option>
+                    <option value="basic">Basic</option>
+                    <option value="premium">Premium</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Months</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.months || 1}
+                    onChange={(e) => setFormData(prev => ({ ...prev, months: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowAssignPlanModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Assign</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record Payment Modal */}
+      {showRecordPaymentModal && selectedTenant && (
+        <div className="modal-overlay" onClick={() => setShowRecordPaymentModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Record Payment for {selectedTenant.tenant.business_name}</h2>
+              <button className="modal-close" onClick={() => setShowRecordPaymentModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleRecordPayment}>
+                <div className="form-group">
+                  <label>Amount (KES)</label>
+                  <input
+                    type="number"
+                    value={formData.amount || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Payment Method</label>
+                  <select
+                    value={formData.payment_method || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, payment_method: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select Method</option>
+                    <option value="mpesa">M-Pesa</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Reference</label>
+                  <input
+                    type="text"
+                    value={formData.reference || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, reference: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Months Paid</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.months || 1}
+                    onChange={(e) => setFormData(prev => ({ ...prev, months: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Notes</label>
+                  <textarea
+                    rows={3}
+                    value={formData.notes || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+                <div className="form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowRecordPaymentModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Record Payment</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SuperAdminDashboard;
