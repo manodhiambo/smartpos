@@ -69,15 +69,52 @@ const startServer = async () => {
     // Test database connection
     await testConnection();
 
-    // Run pending migrations
+    // Run schema init (creates tables if not exist)
+    try {
+      const initSql = fs.readFileSync(
+        path.join(__dirname, 'migrations/init-schema.sql'), 'utf8'
+      );
+      await queryMain(initSql);
+      console.log('✅ Schema initialized');
+    } catch (initError) {
+      console.warn('⚠️  Schema init warning:', initError.message);
+    }
+
+    // Run subscription migrations
     try {
       const migrationSql = fs.readFileSync(
         path.join(__dirname, 'migrations/add-subscriptions.sql'), 'utf8'
       );
       await queryMain(migrationSql);
-      console.log('✅ Database migrations applied');
+      console.log('✅ Subscription migrations applied');
     } catch (migrationError) {
       console.warn('⚠️  Migration warning:', migrationError.message);
+    }
+
+    // Seed demo tenant and admin user if not present
+    try {
+      const bcrypt = require('bcryptjs');
+      const tenantCheck = await queryMain(
+        "SELECT id FROM public.tenants WHERE business_email = 'demo@smartpos.com'"
+      );
+      if (tenantCheck.rows.length === 0) {
+        const tenantResult = await queryMain(
+          `INSERT INTO public.tenants (tenant_name, tenant_schema, business_name, business_email, business_phone, subscription_status, subscription_plan, is_trial, trial_ends_at)
+           VALUES ($1, $2, $3, $4, $5, 'active', 'trial', true, NOW() + INTERVAL '30 days')
+           RETURNING id`,
+          ['SmartPOS Demo Store', 'admin_tenant', 'SmartPOS Demo Supermarket', 'demo@smartpos.com', '+254712345678']
+        );
+        const tenantId = tenantResult.rows[0].id;
+        const passwordHash = await bcrypt.hash('Mycat@95', 10);
+        await queryMain(
+          `INSERT INTO public.tenant_users (tenant_id, username, password_hash, full_name, email, role, status)
+           VALUES ($1, 'Admin', $2, 'System Administrator', 'demo@smartpos.com', 'admin', 'active')`,
+          [tenantId, passwordHash]
+        );
+        console.log('✅ Demo tenant and admin user seeded');
+      }
+    } catch (seedError) {
+      console.warn('⚠️  Seed warning:', seedError.message);
     }
 
     app.listen(PORT, '0.0.0.0', () => {
