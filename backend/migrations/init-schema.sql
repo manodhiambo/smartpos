@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS public.tenants (
 -- Add any missing columns to existing tenants table
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_email VARCHAR(255);
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
+-- Drop NOT NULL on school_name (legacy column, this is a business app)
+ALTER TABLE public.tenants ALTER COLUMN school_name DROP NOT NULL;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_phone VARCHAR(20);
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_address TEXT;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);

@@ -26,10 +26,21 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Add missing columns to subscription_plans if table existed with different schema
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50);
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price_monthly DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price_yearly DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_users INTEGER DEFAULT 5;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_products INTEGER DEFAULT 1000;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_transactions_per_month INTEGER DEFAULT 10000;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS features JSONB;
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
 -- Create payments table
 CREATE TABLE IF NOT EXISTS public.payments (
-  id SERIAL PRIMARY KEY,
-  tenant_id INTEGER REFERENCES public.tenants(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id INTEGER,
   payment_method VARCHAR(50) NOT NULL DEFAULT 'mpesa',
   amount DECIMAL(10,2) NOT NULL,
   currency VARCHAR(10) DEFAULT 'KES',
