@@ -16,6 +16,21 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Add any missing columns to existing tenants table
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_email VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_phone VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_address TEXT;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_schema VARCHAR(63);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'active';
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(50) DEFAULT 'trial';
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_till_number VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_paybill VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_account_number VARCHAR(50);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
 -- Create tenant_users table
 CREATE TABLE IF NOT EXISTS public.tenant_users (
   id SERIAL PRIMARY KEY,
@@ -31,6 +46,16 @@ CREATE TABLE IF NOT EXISTS public.tenant_users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(tenant_id, username)
 );
+
+-- Add any missing columns to existing tenant_users table
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS role VARCHAR(50);
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_tenants_schema ON public.tenants(tenant_schema);
