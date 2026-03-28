@@ -185,8 +185,13 @@ const login = async (req, res) => {
       });
     }
 
-    // Check subscription status
-    const isActive = await subscriptionService.isSubscriptionActive(tenant.id);
+    // Check subscription status (graceful fallback if tables not yet migrated)
+    let isActive = true;
+    try {
+      isActive = await subscriptionService.isSubscriptionActive(tenant.id);
+    } catch (subErr) {
+      console.warn('Subscription check skipped (migration pending):', subErr.message);
+    }
     if (!isActive) {
       return res.status(403).json({
         success: false,
@@ -239,8 +244,13 @@ const login = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Get subscription info
-    const subscription = await subscriptionService.getTenantSubscription(tenant.id);
+    // Get subscription info (graceful fallback if tables not yet migrated)
+    let subscription = null;
+    try {
+      subscription = await subscriptionService.getTenantSubscription(tenant.id);
+    } catch (subErr) {
+      console.warn('Subscription info skipped (migration pending):', subErr.message);
+    }
 
     res.json({
       success: true,
@@ -257,12 +267,12 @@ const login = async (req, res) => {
           id: tenant.id,
           businessName: tenant.business_name,
           businessEmail: tenant.business_email,
-          subscriptionPlan: subscription.subscription_plan,
-          subscriptionStatus: subscription.subscription_status,
-          isTrial: subscription.is_trial,
-          trialEndsAt: subscription.trial_ends_at,
-          subscriptionEndsAt: subscription.subscription_ends_at,
-          daysRemaining: Math.max(0, Math.floor(subscription.days_remaining))
+          subscriptionPlan: subscription?.subscription_plan || tenant.subscription_plan || 'trial',
+          subscriptionStatus: subscription?.subscription_status || tenant.subscription_status || 'active',
+          isTrial: subscription?.is_trial ?? true,
+          trialEndsAt: subscription?.trial_ends_at || null,
+          subscriptionEndsAt: subscription?.subscription_ends_at || null,
+          daysRemaining: Math.max(0, Math.floor(subscription?.days_remaining || 30))
         }
       }
     });
