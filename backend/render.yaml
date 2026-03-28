@@ -8,7 +8,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_r7DKAjGRLoe2@ep-solitary-mouse-afhhi6v8.us-west-2.aws.neon.tech/neondb?sslmode=require
+        value: postgresql://neondb_owner:npg_r7DKAjGRLoe2@ep-solitary-mouse-afhhi6v8.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL
