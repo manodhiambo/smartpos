@@ -94,24 +94,44 @@ const startServer = async () => {
     // Seed demo tenant and admin user if not present
     try {
       const bcrypt = require('bcryptjs');
+      const passwordHash = await bcrypt.hash('Test@2025', 10);
+
+      // Ensure demo tenant exists
+      let tenantId;
       const tenantCheck = await queryMain(
         "SELECT id FROM public.tenants WHERE business_email = 'demo@smartpos.com'"
       );
       if (tenantCheck.rows.length === 0) {
         const tenantResult = await queryMain(
-          `INSERT INTO public.tenants (tenant_name, tenant_schema, business_name, business_email, business_phone, subscription_status, subscription_plan, is_trial, trial_ends_at)
-           VALUES ($1, $2, $3, $4, $5, 'active', 'trial', true, NOW() + INTERVAL '30 days')
-           RETURNING id`,
+          `INSERT INTO public.tenants (tenant_name, tenant_schema, business_name, business_email, business_phone, subscription_status, subscription_plan)
+           VALUES ($1, $2, $3, $4, $5, 'active', 'trial') RETURNING id`,
           ['SmartPOS Demo Store', 'admin_tenant', 'SmartPOS Demo Supermarket', 'demo@smartpos.com', '+254712345678']
         );
-        const tenantId = tenantResult.rows[0].id;
-        const passwordHash = await bcrypt.hash('Mycat@95', 10);
+        tenantId = tenantResult.rows[0].id;
+        console.log('✅ Demo tenant seeded');
+      } else {
+        tenantId = tenantCheck.rows[0].id;
+      }
+
+      // Ensure Admin user exists with correct password
+      const userCheck = await queryMain(
+        "SELECT id FROM public.tenant_users WHERE tenant_id = $1 AND username = 'Admin'",
+        [tenantId]
+      );
+      if (userCheck.rows.length === 0) {
         await queryMain(
           `INSERT INTO public.tenant_users (tenant_id, username, password_hash, full_name, email, role, status)
            VALUES ($1, 'Admin', $2, 'System Administrator', 'demo@smartpos.com', 'admin', 'active')`,
           [tenantId, passwordHash]
         );
-        console.log('✅ Demo tenant and admin user seeded');
+        console.log('✅ Demo admin user seeded');
+      } else {
+        // Update password to ensure it matches
+        await queryMain(
+          "UPDATE public.tenant_users SET password_hash = $1, status = 'active' WHERE tenant_id = $2 AND username = 'Admin'",
+          [passwordHash, tenantId]
+        );
+        console.log('✅ Demo admin user password synced');
       }
     } catch (seedError) {
       console.warn('⚠️  Seed warning:', seedError.message);

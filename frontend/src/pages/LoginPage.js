@@ -9,6 +9,12 @@ const DEMO_CREDENTIALS = [
     label: 'Demo Admin',
     businessEmail: 'demo@smartpos.com',
     username: 'Admin',
+    password: 'Test@2025',
+  },
+  {
+    label: 'Super Admin',
+    businessEmail: 'helvinotechltd@gmail.com',
+    username: 'SuperAdmin',
     password: 'Mycat@95',
   },
 ];
