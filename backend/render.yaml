@@ -13,3 +13,9 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         value: https://smartpos-coral.vercel.app
+      - key: SUPER_ADMIN_EMAIL
+        value: superadmin@smartpos.com
+      - key: SUPER_ADMIN_USERNAME
+        value: SuperAdmin
+      - key: SUPER_ADMIN_PASSWORD
+        value: SuperAdmin@2025
