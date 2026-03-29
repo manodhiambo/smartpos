@@ -1,4 +1,43 @@
--- Create tenants table (fresh install uses UUID)
+-- Add any missing columns to existing tenants table first
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_email VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_phone VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_address TEXT;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_schema VARCHAR(63);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'active';
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(50) DEFAULT 'trial';
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_till_number VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_paybill VARCHAR(20);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_account_number VARCHAR(50);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- Drop NOT NULL on ALL legacy columns that are not relevant to a POS business
+-- This covers school management system columns and any other legacy NOT NULL fields
+DO $$
+DECLARE
+  col TEXT;
+BEGIN
+  FOREACH col IN ARRAY ARRAY[
+    'school_name', 'school_code', 'school_type', 'school_level',
+    'county', 'district', 'email', 'phone', 'address', 'name',
+    'code', 'type', 'level', 'logo', 'website',
+    'contact_person', 'contact_email', 'contact_phone',
+    'registration_number', 'license_number'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'tenants'
+        AND column_name = col AND is_nullable = 'NO'
+    ) THEN
+      EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
+      RAISE NOTICE 'Dropped NOT NULL on tenants.%', col;
+    END IF;
+  END LOOP;
+END $$;
+
+-- Create tenants table for fresh installs (UUID primary key)
 CREATE TABLE IF NOT EXISTS public.tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_name VARCHAR(255),
@@ -16,38 +55,38 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add any missing columns to existing tenants table
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_email VARCHAR(255);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_name VARCHAR(255);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_phone VARCHAR(20);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS business_address TEXT;
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS tenant_schema VARCHAR(63);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'active';
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(50) DEFAULT 'trial';
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_till_number VARCHAR(20);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_paybill VARCHAR(20);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_account_number VARCHAR(50);
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-
--- Drop NOT NULL on all legacy school-specific columns so they do not block business inserts
+-- Fix tenant_users: if tenant_id is INTEGER instead of UUID, drop and recreate the table
+-- Using DROP TABLE CASCADE removes all FK constraints from other tables pointing here
 DO $$
-DECLARE
-  col TEXT;
 BEGIN
-  FOREACH col IN ARRAY ARRAY['school_name', 'school_code', 'school_type', 'school_level', 'county', 'district'] LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'tenants'
-        AND column_name = col AND is_nullable = 'NO'
-    ) THEN
-      EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
-    END IF;
-  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'tenant_users'
+      AND column_name = 'tenant_id' AND data_type = 'integer'
+  ) THEN
+    -- CASCADE drops FK constraints in other tables that reference tenant_users
+    DROP TABLE IF EXISTS public.tenant_users CASCADE;
+    RAISE NOTICE 'Dropped tenant_users (had INTEGER tenant_id) — recreating with UUID';
+
+    CREATE TABLE public.tenant_users (
+      id SERIAL PRIMARY KEY,
+      tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+      username VARCHAR(100) NOT NULL,
+      password_hash VARCHAR(255),
+      full_name VARCHAR(255),
+      email VARCHAR(255),
+      role VARCHAR(50),
+      status VARCHAR(20) DEFAULT 'active',
+      last_login TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tenant_id, username)
+    );
+    RAISE NOTICE 'Recreated tenant_users with UUID tenant_id';
+  END IF;
 END $$;
 
--- Create tenant_users table with UUID tenant_id to match tenants.id
+-- Create tenant_users if it doesn't exist yet (fresh install)
 CREATE TABLE IF NOT EXISTS public.tenant_users (
   id SERIAL PRIMARY KEY,
   tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -63,50 +102,7 @@ CREATE TABLE IF NOT EXISTS public.tenant_users (
   UNIQUE(tenant_id, username)
 );
 
--- Fix tenant_users.tenant_id if it exists as INTEGER instead of UUID
-DO $$
-DECLARE
-  v_constraint text;
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'tenant_users'
-      AND column_name = 'tenant_id' AND data_type = 'integer'
-  ) THEN
-    -- Drop any FK constraint referencing tenants
-    FOR v_constraint IN
-      SELECT conname FROM pg_constraint
-      WHERE conrelid = 'public.tenant_users'::regclass AND contype = 'f'
-    LOOP
-      EXECUTE 'ALTER TABLE public.tenant_users DROP CONSTRAINT IF EXISTS ' || quote_ident(v_constraint);
-    END LOOP;
-
-    -- Drop the UNIQUE constraint that includes tenant_id (cannot alter column with unique constraint)
-    FOR v_constraint IN
-      SELECT conname FROM pg_constraint
-      WHERE conrelid = 'public.tenant_users'::regclass AND contype = 'u'
-    LOOP
-      EXECUTE 'ALTER TABLE public.tenant_users DROP CONSTRAINT IF EXISTS ' || quote_ident(v_constraint);
-    END LOOP;
-
-    -- Truncate existing rows (they used integer tenant IDs that no longer map to UUID tenants)
-    TRUNCATE public.tenant_users;
-
-    -- Change column type to UUID
-    ALTER TABLE public.tenant_users ALTER COLUMN tenant_id TYPE UUID USING NULL;
-
-    -- Restore FK and unique constraints
-    ALTER TABLE public.tenant_users
-      ADD CONSTRAINT tenant_users_tenant_id_fkey
-      FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
-
-    ALTER TABLE public.tenant_users
-      ADD CONSTRAINT tenant_users_tenant_id_username_key
-      UNIQUE (tenant_id, username);
-  END IF;
-END $$;
-
--- Add any missing columns to existing tenant_users table
+-- Add any missing columns to tenant_users
 ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE public.tenant_users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
