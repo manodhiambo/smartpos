@@ -99,6 +99,332 @@
   color: white;
 }
 
+/* ── Daraja Tab Badge ── */
+.daraja-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.daraja-badge.sandbox {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.daraja-badge.live {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* ── Setup Guide ── */
+.daraja-guide {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.daraja-guide h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.daraja-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.daraja-steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.daraja-steps li > div strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.daraja-steps li > div p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.daraja-steps a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.daraja-steps a:hover {
+  text-decoration: underline;
+}
+
+.daraja-sandbox-note {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+.daraja-sandbox-note code {
+  background: #dbeafe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* ── Status Row ── */
+.daraja-status-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.daraja-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.daraja-status-badge.unconfigured {
+  background: #f3f4f6;
+  color: var(--text-secondary);
+}
+
+.daraja-status-badge.sandbox {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.daraja-status-badge.live {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.btn-test-daraja {
+  padding: 9px 18px;
+  border: 2px solid var(--primary-color);
+  background: white;
+  color: var(--primary-color);
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.2s;
+}
+
+.btn-test-daraja:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-test-daraja.success {
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.btn-test-daraja.fail {
+  border-color: #ef4444;
+  color: #7f1d1d;
+}
+
+.btn-test-daraja:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.daraja-test-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.daraja-test-result.success {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.daraja-test-result.fail {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 1px solid #fca5a5;
+}
+
+/* ── Environment Toggle ── */
+.daraja-env-toggle {
+  margin-bottom: 8px;
+}
+
+.env-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.env-options {
+  display: flex;
+  gap: 12px;
+}
+
+.env-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.env-option input[type="radio"] {
+  accent-color: var(--primary-color);
+  width: 16px;
+  height: 16px;
+}
+
+.env-option.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(79, 70, 229, 0.05);
+}
+
+.env-option.production.active {
+  border-color: #10b981;
+  color: #065f46;
+  background: rgba(16, 185, 129, 0.05);
+}
+
+/* ── Secret Fields ── */
+.secret-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.secret-input-row input {
+  flex: 1;
+}
+
+.show-hide-btn {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.show-hide-btn:hover {
+  background: var(--light-color);
+  color: var(--text-primary);
+}
+
+.field-set-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ── Daraja Actions Row ── */
+.daraja-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+/* ── Security Note ── */
+.daraja-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #166534;
+}
+
+.daraja-security-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
 @media (max-width: 768px) {
   .settings-tabs {
     flex-direction: column;

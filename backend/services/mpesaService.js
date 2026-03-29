@@ -17,13 +17,16 @@ class MpesaService {
   /**
    * Get OAuth access token (uses system credentials by default)
    */
-  async getAccessToken(consumerKey, consumerSecret) {
+  async getAccessToken(consumerKey, consumerSecret, env) {
     const key = consumerKey || this.consumerKey;
     const secret = consumerSecret || this.consumerSecret;
+    const baseUrl = (env || this.environment) === 'production'
+      ? 'https://api.safaricom.co.ke'
+      : 'https://sandbox.safaricom.co.ke';
     try {
       const auth = Buffer.from(`${key}:${secret}`).toString('base64');
       const response = await axios.get(
-        `${this.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
+        `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
         { headers: { Authorization: `Basic ${auth}` } }
       );
       return response.data.access_token;
@@ -67,7 +70,7 @@ class MpesaService {
   async stkPush(phone, amount, accountReference, description) {
     return this._stkPush(
       this.consumerKey, this.consumerSecret,
-      this.shortCode, this.passkey,
+      this.shortCode, this.passkey, this.environment,
       phone, amount, accountReference, description
     );
   }
@@ -80,18 +83,26 @@ class MpesaService {
     const consumerSecret = tenant.mpesa_consumer_secret || this.consumerSecret;
     const shortCode = tenant.mpesa_paybill || tenant.mpesa_till_number || this.shortCode;
     const passkey = tenant.mpesa_passkey || this.passkey;
+    const env = tenant.mpesa_environment || this.environment;
 
     if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
-      return { success: false, error: 'M-Pesa STK Push is not configured for this business. Please set up M-Pesa API credentials in settings.' };
+      return {
+        success: false,
+        error: 'M-Pesa STK Push is not configured. Go to Settings → Daraja API to set up your credentials.'
+      };
     }
 
     return this._stkPush(
-      consumerKey, consumerSecret, shortCode, passkey,
+      consumerKey, consumerSecret, shortCode, passkey, env,
       phone, amount, reference, `Payment ${reference}`
     );
   }
 
-  async _stkPush(consumerKey, consumerSecret, shortCode, passkey, phone, amount, accountReference, description) {
+  async _stkPush(consumerKey, consumerSecret, shortCode, passkey, env, phone, amount, accountReference, description) {
+    const baseUrl = env === 'production'
+      ? 'https://api.safaricom.co.ke'
+      : 'https://sandbox.safaricom.co.ke';
+
     try {
       const accessToken = await this.getAccessToken(consumerKey, consumerSecret);
       const { password, timestamp } = this.generatePassword(shortCode, passkey);
@@ -112,7 +123,7 @@ class MpesaService {
       };
 
       const response = await axios.post(
-        `${this.baseUrl}/mpesa/stkpush/v1/processrequest`,
+        `${baseUrl}/mpesa/stkpush/v1/processrequest`,
         payload,
         {
           headers: {
@@ -145,7 +156,7 @@ class MpesaService {
   async queryStkPush(checkoutRequestId) {
     return this._queryStkPush(
       this.consumerKey, this.consumerSecret,
-      this.shortCode, this.passkey,
+      this.shortCode, this.passkey, this.environment,
       checkoutRequestId
     );
   }
@@ -158,10 +169,15 @@ class MpesaService {
     const consumerSecret = tenant.mpesa_consumer_secret || this.consumerSecret;
     const shortCode = tenant.mpesa_paybill || tenant.mpesa_till_number || this.shortCode;
     const passkey = tenant.mpesa_passkey || this.passkey;
-    return this._queryStkPush(consumerKey, consumerSecret, shortCode, passkey, checkoutRequestId);
+    const env = tenant.mpesa_environment || this.environment;
+    return this._queryStkPush(consumerKey, consumerSecret, shortCode, passkey, env, checkoutRequestId);
   }
 
-  async _queryStkPush(consumerKey, consumerSecret, shortCode, passkey, checkoutRequestId) {
+  async _queryStkPush(consumerKey, consumerSecret, shortCode, passkey, env, checkoutRequestId) {
+    const baseUrl = env === 'production'
+      ? 'https://api.safaricom.co.ke'
+      : 'https://sandbox.safaricom.co.ke';
+
     try {
       const accessToken = await this.getAccessToken(consumerKey, consumerSecret);
       const { password, timestamp } = this.generatePassword(shortCode, passkey);
@@ -174,7 +190,7 @@ class MpesaService {
       };
 
       const response = await axios.post(
-        `${this.baseUrl}/mpesa/stkpushquery/v1/query`,
+        `${baseUrl}/mpesa/stkpushquery/v1/query`,
         payload,
         {
           headers: {

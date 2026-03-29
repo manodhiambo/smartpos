@@ -1,5 +1,10 @@
 -- Add subscription columns to tenants table
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
+-- Daraja API credentials for per-tenant M-Pesa STK Push
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_consumer_key VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_consumer_secret VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_passkey VARCHAR(512);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_environment VARCHAR(20) DEFAULT 'sandbox';
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_started_at TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS monthly_price DECIMAL(10,2) DEFAULT 0;

@@ -15,10 +15,22 @@ router.put('/info',
   tenantController.updateTenantInfo
 );
 
-// Update M-Pesa settings (admin only)
-router.put('/mpesa-settings', 
-  authorize('admin'), 
+// Update M-Pesa payment settings (admin only)
+router.put('/mpesa-settings',
+  authorize('admin'),
   tenantController.updateMpesaSettings
+);
+
+// Update Daraja API credentials (admin only)
+router.put('/daraja-settings',
+  authorize('admin'),
+  tenantController.updateDarajaSettings
+);
+
+// Test Daraja API connection
+router.post('/daraja-test',
+  authorize('admin'),
+  tenantController.testDarajaConnection
 );
 
 module.exports = router;

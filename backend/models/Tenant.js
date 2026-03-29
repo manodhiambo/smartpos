@@ -92,7 +92,7 @@ class Tenant {
     } = updateData;
 
     const result = await queryMain(
-      `UPDATE public.tenants 
+      `UPDATE public.tenants
        SET business_name = COALESCE($1, business_name),
            business_phone = COALESCE($2, business_phone),
            business_address = COALESCE($3, business_address),
@@ -102,10 +102,31 @@ class Tenant {
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $7
        RETURNING *`,
-      [businessName, businessPhone, businessAddress, mpesaTillNumber, 
+      [businessName, businessPhone, businessAddress, mpesaTillNumber,
        mpesaPaybill, mpesaAccountNumber, tenantId]
     );
 
+    return result.rows[0];
+  }
+
+  /**
+   * Update Daraja API credentials for per-tenant M-Pesa STK Push.
+   * Pass null for secret/passkey to leave the existing value unchanged.
+   */
+  static async updateDarajaSettings(tenantId, { consumerKey, consumerSecret, passkey, environment }) {
+    const result = await queryMain(
+      `UPDATE public.tenants
+       SET mpesa_consumer_key    = COALESCE($1, mpesa_consumer_key),
+           mpesa_consumer_secret = CASE WHEN $2 IS NOT NULL THEN $2 ELSE mpesa_consumer_secret END,
+           mpesa_passkey         = CASE WHEN $3 IS NOT NULL THEN $3 ELSE mpesa_passkey END,
+           mpesa_environment     = COALESCE($4, mpesa_environment),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5
+       RETURNING id, mpesa_consumer_key, mpesa_environment,
+                 (mpesa_consumer_secret IS NOT NULL AND mpesa_consumer_secret != '') AS secret_set,
+                 (mpesa_passkey IS NOT NULL AND mpesa_passkey != '') AS passkey_set`,
+      [consumerKey || null, consumerSecret || null, passkey || null, environment || null, tenantId]
+    );
     return result.rows[0];
   }
 
