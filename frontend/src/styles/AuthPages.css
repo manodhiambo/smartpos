@@ -19,10 +19,7 @@
   min-height: 600px;
 }
 
-.register-container {
-  max-width: 1400px;
-  grid-template-columns: 40% 60%;
-}
+/* register-container: same layout as login — no override needed */
 
 /* Left Side */
 .auth-left {
@@ -320,10 +317,6 @@
     max-width: 600px;
   }
 
-  .register-container {
-    grid-template-columns: 1fr;
-  }
-
   .auth-left {
     display: none;
   }
@@ -360,6 +353,128 @@
   .input-with-icon input {
     padding-left: 40px !important;
   }
+}
+
+/* Registration step indicators */
+.reg-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+
+.reg-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  position: relative;
+}
+
+.reg-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 14px;
+  width: calc(100% - 80px);
+  height: 2px;
+  background: var(--border-color);
+  left: 80px;
+}
+
+.reg-step.done:not(:last-child)::after {
+  background: var(--primary-color);
+}
+
+.reg-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s ease;
+}
+
+.reg-step.active .reg-step-dot {
+  background: var(--primary-color);
+  color: white;
+}
+
+.reg-step.done .reg-step-dot {
+  background: #22c55e;
+  color: white;
+}
+
+.reg-step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.reg-step.active .reg-step-label {
+  color: var(--primary-color);
+}
+
+.reg-step.done .reg-step-label {
+  color: #22c55e;
+}
+
+/* Registration nav buttons */
+.reg-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.reg-back-btn {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.reg-next-btn {
+  flex: 1;
+  gap: 6px;
+  justify-content: center;
+}
+
+/* Match login page title classes */
+.auth-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.auth-footer a {
+  color: var(--primary-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
 }
 
 /* Pricing banner on registration form */
