@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import SubscriptionBanner from '../common/SubscriptionBanner';
+import HelvinoCredit from '../common/HelvinoCredit';
 import '../../styles/Layout.css';
 
 const Layout = ({ children }) => {
@@ -24,6 +25,7 @@ const Layout = ({ children }) => {
         <main className={`main-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
           {showSubscriptionBanner && <SubscriptionBanner subscription={tenant} />}
           {children}
+          <HelvinoCredit />
         </main>
       </div>
     </div>

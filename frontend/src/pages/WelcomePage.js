@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaShoppingCart, FaChartLine, FaBoxes, FaUsers, FaMobile, FaShieldAlt, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
+import { FaShoppingCart, FaChartLine, FaBoxes, FaUsers, FaMobile, FaShieldAlt, FaArrowRight, FaCheckCircle, FaPhone, FaEnvelope, FaGlobe } from 'react-icons/fa';
+import HelvinoCredit from '../components/common/HelvinoCredit';
 import '../styles/WelcomePage.css';
 
 const WelcomePage = () => {
@@ -77,7 +78,7 @@ const WelcomePage = () => {
               </button>
             </div>
             <p className="hero-subtext">
-              ✨ No credit card required • 30-day free trial • Cancel anytime
+              ✨ No credit card required • 5-day free trial • Setup fee KSh 70,000 • Renewal KSh 20,000/yr
             </p>
           </div>
           <div className="hero-image">
@@ -183,11 +184,35 @@ const WelcomePage = () => {
           <div className="cta-content">
             <h2 className="cta-title">Ready to Transform Your Supermarket?</h2>
             <p className="cta-description">
-              Start your free 30-day trial today. No credit card required.
+              Start your free 5-day trial today. Setup fee KSh 70,000 · Annual renewal KSh 20,000.
             </p>
             <button className="btn btn-primary btn-large" onClick={() => navigate('/register')}>
               Get Started Now <FaArrowRight />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Support Section */}
+      <section className="support-section">
+        <div className="container">
+          <div className="support-content">
+            <h3 className="support-title">Need Help? Contact Support</h3>
+            <p className="support-subtitle">Our team is ready to help you get started</p>
+            <div className="support-contacts">
+              <a href="https://helvino.org" target="_blank" rel="noopener noreferrer" className="support-item">
+                <FaGlobe className="support-icon" />
+                <span>helvino.org</span>
+              </a>
+              <a href="tel:+254110421320" className="support-item">
+                <FaPhone className="support-icon" />
+                <span>0110 421 320</span>
+              </a>
+              <a href="mailto:info@helvino.org" className="support-item">
+                <FaEnvelope className="support-icon" />
+                <span>info@helvino.org</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -200,8 +225,9 @@ const WelcomePage = () => {
               <FaShoppingCart />
               <span>SmartPOS</span>
             </div>
-            <p className="footer-text">© 2025 SmartPOS. All rights reserved.</p>
+            <p className="footer-text">© {new Date().getFullYear()} SmartPOS. All rights reserved.</p>
           </div>
+          <HelvinoCredit variant="dark" />
         </div>
       </footer>
     </div>

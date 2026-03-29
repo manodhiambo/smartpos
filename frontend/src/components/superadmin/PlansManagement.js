@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { superAdminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaUsers, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaUsers } from 'react-icons/fa';
 import { formatCurrency } from '../../utils/helpers';
 import '../../styles/SuperAdmin.css';
 
@@ -13,7 +13,7 @@ const PlansManagement = () => {
   const [formData, setFormData] = useState({
     plan_name: '',
     display_name: '',
-    price_monthly: '',
+    setup_fee: '',
     price_yearly: '',
     max_users: '',
     max_products: '',
@@ -44,7 +44,6 @@ const PlansManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     try {
       if (editingPlan) {
         await superAdminAPI.updatePlan(editingPlan.id, formData);
@@ -53,7 +52,6 @@ const PlansManagement = () => {
         await superAdminAPI.createPlan(formData);
         toast.success('Plan created successfully');
       }
-      
       setShowModal(false);
       resetForm();
       fetchPlans();
@@ -67,7 +65,7 @@ const PlansManagement = () => {
     setFormData({
       plan_name: plan.plan_name,
       display_name: plan.display_name,
-      price_monthly: plan.price_monthly,
+      setup_fee: plan.setup_fee,
       price_yearly: plan.price_yearly,
       max_users: plan.max_users,
       max_products: plan.max_products,
@@ -79,7 +77,6 @@ const PlansManagement = () => {
 
   const handleDelete = async (planId) => {
     if (!window.confirm('Are you sure you want to deactivate this plan?')) return;
-    
     try {
       await superAdminAPI.deletePlan(planId);
       toast.success('Plan deactivated successfully');
@@ -94,7 +91,7 @@ const PlansManagement = () => {
     setFormData({
       plan_name: '',
       display_name: '',
-      price_monthly: '',
+      setup_fee: '',
       price_yearly: '',
       max_users: '',
       max_products: '',
@@ -117,12 +114,9 @@ const PlansManagement = () => {
     <div className="plans-management">
       <div className="page-header">
         <h2>Subscription Plans Management</h2>
-        <button 
+        <button
           className="btn btn-primary"
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
+          onClick={() => { resetForm(); setShowModal(true); }}
         >
           <FaPlus /> Create New Plan
         </button>
@@ -139,14 +133,22 @@ const PlansManagement = () => {
             </div>
 
             <div className="plan-pricing">
-              <div className="price-item">
-                <span className="price">{formatCurrency(plan.price_monthly)}</span>
-                <span className="period">/month</span>
-              </div>
-              <div className="price-item">
-                <span className="price">{formatCurrency(plan.price_yearly)}</span>
-                <span className="period">/year</span>
-              </div>
+              {plan.plan_name !== 'trial' ? (
+                <>
+                  <div className="price-item">
+                    <span className="price-label" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>One-time setup</span>
+                    <span className="price">{formatCurrency(plan.setup_fee || 0)}</span>
+                  </div>
+                  <div className="price-item">
+                    <span className="price-label" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Annual renewal</span>
+                    <span className="price">{formatCurrency(plan.price_yearly || 0)}/year</span>
+                  </div>
+                </>
+              ) : (
+                <div className="price-item">
+                  <span className="price">Free (5-day trial)</span>
+                </div>
+              )}
             </div>
 
             <div className="plan-limits">
@@ -154,10 +156,10 @@ const PlansManagement = () => {
                 <FaUsers /> {plan.max_users} Users
               </div>
               <div className="limit-item">
-                📦 {plan.max_products.toLocaleString()} Products
+                📦 {plan.max_products?.toLocaleString()} Products
               </div>
               <div className="limit-item">
-                🛒 {plan.max_transactions_per_month.toLocaleString()} Transactions/mo
+                🛒 {plan.max_transactions_per_month?.toLocaleString()} Transactions/mo
               </div>
             </div>
 
@@ -166,13 +168,10 @@ const PlansManagement = () => {
             </div>
 
             <div className="plan-actions">
-              <button 
-                className="btn btn-sm btn-secondary"
-                onClick={() => handleEdit(plan)}
-              >
+              <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(plan)}>
                 <FaEdit /> Edit
               </button>
-              <button 
+              <button
                 className="btn btn-sm btn-danger"
                 onClick={() => handleDelete(plan.id)}
                 disabled={plan.active_subscribers > 0}
@@ -201,19 +200,18 @@ const PlansManagement = () => {
                     type="text"
                     value={formData.plan_name}
                     onChange={(e) => setFormData({...formData, plan_name: e.target.value})}
-                    placeholder="e.g., basic, premium"
+                    placeholder="e.g., standard"
                     required
-                    disabled={editingPlan}
+                    disabled={!!editingPlan}
                   />
                 </div>
-
                 <div className="form-group">
                   <label>Display Name *</label>
                   <input
                     type="text"
                     value={formData.display_name}
                     onChange={(e) => setFormData({...formData, display_name: e.target.value})}
-                    placeholder="e.g., Basic Plan"
+                    placeholder="e.g., Standard Plan"
                     required
                   />
                 </div>
@@ -221,21 +219,22 @@ const PlansManagement = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Monthly Price (KES) *</label>
+                  <label>One-Time Setup Fee (KES) *</label>
                   <input
                     type="number"
-                    value={formData.price_monthly}
-                    onChange={(e) => setFormData({...formData, price_monthly: e.target.value})}
+                    value={formData.setup_fee}
+                    onChange={(e) => setFormData({...formData, setup_fee: e.target.value})}
+                    placeholder="70000"
                     required
                   />
                 </div>
-
                 <div className="form-group">
-                  <label>Yearly Price (KES) *</label>
+                  <label>Annual Renewal Price (KES) *</label>
                   <input
                     type="number"
                     value={formData.price_yearly}
                     onChange={(e) => setFormData({...formData, price_yearly: e.target.value})}
+                    placeholder="20000"
                     required
                   />
                 </div>
@@ -251,7 +250,6 @@ const PlansManagement = () => {
                     required
                   />
                 </div>
-
                 <div className="form-group">
                   <label>Max Products *</label>
                   <input

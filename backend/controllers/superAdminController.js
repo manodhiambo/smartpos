@@ -300,7 +300,7 @@ exports.getAllPlans = async (req, res) => {
     const plans = await queryMain(`
       SELECT sp.*, 0 as active_subscribers
       FROM public.subscription_plans sp
-      ORDER BY COALESCE(sp.price_monthly, 0) ASC
+      ORDER BY COALESCE(sp.setup_fee, 0) ASC
     `);
 
     res.json({
@@ -325,7 +325,7 @@ exports.createPlan = async (req, res) => {
     const {
       plan_name,
       display_name,
-      price_monthly,
+      setup_fee,
       price_yearly,
       max_users,
       max_products,
@@ -335,16 +335,16 @@ exports.createPlan = async (req, res) => {
 
     const result = await queryMain(`
       INSERT INTO public.subscription_plans (
-        plan_name, display_name, price_monthly, price_yearly,
+        plan_name, display_name, setup_fee, price_monthly, price_yearly,
         max_users, max_products, max_transactions_per_month,
         features, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+      ) VALUES ($1, $2, $3, 0, $4, $5, $6, $7, $8, true)
       RETURNING *
     `, [
       plan_name,
       display_name,
-      price_monthly,
-      price_yearly,
+      setup_fee || 0,
+      price_yearly || 0,
       max_users,
       max_products,
       max_transactions_per_month,
@@ -374,7 +374,7 @@ exports.updatePlan = async (req, res) => {
     const { planId } = req.params;
     const {
       display_name,
-      price_monthly,
+      setup_fee,
       price_yearly,
       max_users,
       max_products,
@@ -387,7 +387,7 @@ exports.updatePlan = async (req, res) => {
       UPDATE public.subscription_plans
       SET
         display_name = COALESCE($1, display_name),
-        price_monthly = COALESCE($2, price_monthly),
+        setup_fee = COALESCE($2, setup_fee),
         price_yearly = COALESCE($3, price_yearly),
         max_users = COALESCE($4, max_users),
         max_products = COALESCE($5, max_products),
@@ -399,7 +399,7 @@ exports.updatePlan = async (req, res) => {
       RETURNING *
     `, [
       display_name,
-      price_monthly,
+      setup_fee,
       price_yearly,
       max_users,
       max_products,
@@ -430,7 +430,7 @@ exports.updatePlan = async (req, res) => {
 exports.assignPlan = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { plan_name, months } = req.body;
+    const { plan_name, years } = req.body;
 
     // Get plan details
     const plan = await queryMain(
@@ -446,9 +446,9 @@ exports.assignPlan = async (req, res) => {
     }
 
     const planData = plan.rows[0];
-    const monthsCount = parseInt(months) || 1;
+    const yearsCount = parseInt(years) || 1;
     const subscriptionEndsAt = new Date();
-    subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + monthsCount);
+    subscriptionEndsAt.setFullYear(subscriptionEndsAt.getFullYear() + yearsCount);
 
     // Update tenant
     await queryMain(`
@@ -458,12 +458,13 @@ exports.assignPlan = async (req, res) => {
         subscription_status = 'active',
         subscription_started_at = NOW(),
         subscription_ends_at = $2,
-        monthly_price = $3,
+        yearly_price = $3,
+        setup_fee_paid = true,
         is_trial = false,
         trial_ends_at = NULL,
         updated_at = NOW()
       WHERE id = $4
-    `, [plan_name, subscriptionEndsAt, planData.price_monthly, tenantId]);
+    `, [plan_name, subscriptionEndsAt, planData.price_yearly, tenantId]);
 
     // Log subscription history
     await subscriptionService.logSubscriptionHistory(
@@ -471,13 +472,13 @@ exports.assignPlan = async (req, res) => {
       'plan_assigned',
       null,
       plan_name,
-      `Plan assigned by super admin for ${monthsCount} month(s)`,
+      `Plan assigned by super admin for ${yearsCount} year(s)`,
       req.user.username
     );
 
     res.json({
       success: true,
-      message: `Plan assigned successfully for ${monthsCount} month(s)`
+      message: `Plan assigned successfully for ${yearsCount} year(s)`
     });
   } catch (error) {
     console.error('Assign plan error:', error);

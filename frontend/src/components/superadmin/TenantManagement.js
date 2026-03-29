@@ -151,22 +151,22 @@ const TenantManagement = ({ tenant, onUpdate }) => {
                   required
                 >
                   <option value="">Choose a plan...</option>
-                  {plans.map(plan => (
+                  {plans.filter(p => p.plan_name !== 'trial').map(plan => (
                     <option key={plan.id} value={plan.plan_name}>
-                      {plan.display_name} - {formatCurrency(plan.price_monthly)}/month
+                      {plan.display_name} — Setup: {formatCurrency(plan.setup_fee || 0)} | {formatCurrency(plan.price_yearly || 0)}/yr
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label>Duration (Months) *</label>
+                <label>Duration (Years) *</label>
                 <input
                   type="number"
                   min="1"
-                  max="24"
-                  value={assignData.months}
-                  onChange={(e) => setAssignData({...assignData, months: e.target.value})}
+                  max="5"
+                  value={assignData.years || assignData.months || 1}
+                  onChange={(e) => setAssignData({...assignData, years: e.target.value, months: e.target.value})}
                   required
                 />
               </div>

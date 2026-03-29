@@ -6,6 +6,7 @@ import {
   FaMapMarkerAlt, FaUser, FaLock, FaEye, FaEyeSlash,
   FaChevronRight, FaChevronLeft
 } from 'react-icons/fa';
+import HelvinoCredit from '../components/common/HelvinoCredit';
 import '../styles/AuthPages.css';
 
 const STEPS = ['Account', 'Business', 'M-Pesa'];
@@ -358,6 +359,8 @@ const RegisterPage = () => {
             <p className="auth-footer">
               Already have an account? <Link to="/login">Sign In</Link>
             </p>
+
+            <HelvinoCredit />
           </div>
         </div>
 

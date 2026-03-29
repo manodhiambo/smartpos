@@ -2,11 +2,11 @@ const { queryMain } = require('../config/database');
 
 class SubscriptionService {
   /**
-   * Get all subscription plans
+   * Get all active subscription plans
    */
   async getPlans() {
     const result = await queryMain(
-      'SELECT * FROM public.subscription_plans WHERE is_active = true ORDER BY COALESCE(price_monthly, 0) ASC'
+      'SELECT * FROM public.subscription_plans WHERE is_active = true ORDER BY COALESCE(setup_fee, 0) ASC'
     );
     return result.rows;
   }
@@ -27,18 +27,18 @@ class SubscriptionService {
    */
   async isSubscriptionActive(tenantId) {
     const result = await queryMain(
-      `SELECT 
+      `SELECT
         subscription_status,
         subscription_plan,
         is_trial,
         trial_ends_at,
         subscription_ends_at,
         grace_period_days,
-        CASE 
+        CASE
           WHEN is_trial = true THEN trial_ends_at
           ELSE subscription_ends_at
         END as effective_end_date
-      FROM public.tenants 
+      FROM public.tenants
       WHERE id = $1`,
       [tenantId]
     );
@@ -51,7 +51,6 @@ class SubscriptionService {
     const gracePeriodEnd = new Date(endDate);
     gracePeriodEnd.setDate(gracePeriodEnd.getDate() + (tenant.grace_period_days || 3));
 
-    // Check if subscription is active and not expired
     if (tenant.subscription_status === 'active' && now <= gracePeriodEnd) {
       return true;
     }
@@ -66,7 +65,7 @@ class SubscriptionService {
   }
 
   /**
-   * Start trial for new tenant
+   * Start 5-day trial for new tenant
    */
   async startTrial(tenantId) {
     const trialDays = 5;
@@ -74,11 +73,12 @@ class SubscriptionService {
     trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
     await queryMain(
-      `UPDATE public.tenants 
-      SET 
+      `UPDATE public.tenants
+      SET
         subscription_plan = 'trial',
         subscription_status = 'active',
         is_trial = true,
+        setup_fee_paid = false,
         trial_ends_at = $1,
         subscription_started_at = NOW()
       WHERE id = $2`,
@@ -90,62 +90,67 @@ class SubscriptionService {
       'trial_started',
       null,
       'trial',
-      'New tenant trial started'
+      'New tenant 5-day trial started'
     );
   }
 
   /**
-   * Upgrade subscription
+   * Activate subscription after setup fee payment (1 year from today)
    */
-  async upgradeSubscription(tenantId, planName, months = 1) {
-    const plan = await this.getPlanByName(planName);
-    if (!plan) throw new Error('Invalid plan');
+  async activateAfterSetup(tenantId) {
+    const plan = await this.getPlanByName('standard');
+    if (!plan) throw new Error('Standard plan not found');
 
     const subscriptionEndsAt = new Date();
-    subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + months);
+    subscriptionEndsAt.setFullYear(subscriptionEndsAt.getFullYear() + 1);
 
     const result = await queryMain(
-      `UPDATE public.tenants 
-      SET 
-        subscription_plan = $1,
+      `UPDATE public.tenants
+      SET
+        subscription_plan = 'standard',
         subscription_status = 'active',
         is_trial = false,
+        setup_fee_paid = true,
+        yearly_price = $1,
         subscription_ends_at = $2,
-        monthly_price = $3,
         subscription_started_at = COALESCE(subscription_started_at, NOW()),
         updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $3
       RETURNING subscription_plan`,
-      [planName, subscriptionEndsAt, plan.price_monthly, tenantId]
+      [plan.price_yearly, subscriptionEndsAt, tenantId]
     );
 
     await this.logSubscriptionHistory(
       tenantId,
-      'subscription_upgraded',
+      'setup_fee_paid',
       'trial',
-      planName,
-      `Upgraded to ${plan.display_name} for ${months} month(s)`
+      'standard',
+      'Subscription activated after setup fee payment — valid for 1 year'
     );
 
     return result.rows[0];
   }
 
   /**
-   * Renew subscription
+   * Renew subscription for 1 year from current end date (or today if expired)
    */
-  async renewSubscription(tenantId, months = 1) {
+  async renewSubscription(tenantId) {
     const tenant = await queryMain(
       'SELECT subscription_plan, subscription_ends_at FROM public.tenants WHERE id = $1',
       [tenantId]
     );
 
-    const currentEndDate = new Date(tenant.rows[0].subscription_ends_at || new Date());
-    const newEndDate = new Date(currentEndDate);
-    newEndDate.setMonth(newEndDate.getMonth() + months);
+    const row = tenant.rows[0];
+    const baseDate = row.subscription_ends_at && new Date(row.subscription_ends_at) > new Date()
+      ? new Date(row.subscription_ends_at)
+      : new Date();
+
+    const newEndDate = new Date(baseDate);
+    newEndDate.setFullYear(newEndDate.getFullYear() + 1);
 
     await queryMain(
-      `UPDATE public.tenants 
-      SET 
+      `UPDATE public.tenants
+      SET
         subscription_ends_at = $1,
         subscription_status = 'active',
         updated_at = NOW()
@@ -156,9 +161,9 @@ class SubscriptionService {
     await this.logSubscriptionHistory(
       tenantId,
       'subscription_renewed',
-      tenant.rows[0].subscription_plan,
-      tenant.rows[0].subscription_plan,
-      `Renewed for ${months} month(s)`
+      row.subscription_plan,
+      row.subscription_plan,
+      'Renewed for 1 year'
     );
   }
 
@@ -167,7 +172,7 @@ class SubscriptionService {
    */
   async suspendTenant(tenantId, reason) {
     await queryMain(
-      `UPDATE public.tenants 
+      `UPDATE public.tenants
       SET subscription_status = 'suspended', updated_at = NOW()
       WHERE id = $1`,
       [tenantId]
@@ -187,8 +192,8 @@ class SubscriptionService {
    */
   async cancelSubscription(tenantId, reason) {
     await queryMain(
-      `UPDATE public.tenants 
-      SET 
+      `UPDATE public.tenants
+      SET
         subscription_status = 'cancelled',
         auto_renew = false,
         updated_at = NOW()
@@ -210,7 +215,7 @@ class SubscriptionService {
    */
   async logSubscriptionHistory(tenantId, action, previousPlan, newPlan, reason, performedBy = 'system') {
     await queryMain(
-      `INSERT INTO public.subscription_history 
+      `INSERT INTO public.subscription_history
         (tenant_id, action, previous_plan, new_plan, reason, performed_by)
       VALUES ($1, $2, $3, $4, $5, $6)`,
       [tenantId, action, previousPlan, newPlan, reason, performedBy]
@@ -222,21 +227,23 @@ class SubscriptionService {
    */
   async getTenantSubscription(tenantId) {
     const result = await queryMain(
-      `SELECT 
+      `SELECT
         t.*,
         sp.display_name,
+        sp.setup_fee,
+        sp.price_yearly,
         sp.features,
         sp.max_users,
         sp.max_products,
         sp.max_transactions_per_month,
-        CASE 
+        CASE
           WHEN t.is_trial = true THEN t.trial_ends_at
           ELSE t.subscription_ends_at
         END as expires_at,
-        CASE 
-          WHEN t.is_trial = true THEN 
+        CASE
+          WHEN t.is_trial = true THEN
             EXTRACT(DAY FROM (t.trial_ends_at - NOW()))
-          ELSE 
+          ELSE
             EXTRACT(DAY FROM (t.subscription_ends_at - NOW()))
         END as days_remaining
       FROM public.tenants t

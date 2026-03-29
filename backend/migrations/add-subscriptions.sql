@@ -3,6 +3,8 @@ ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS subscription_started_at TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS monthly_price DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS yearly_price DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS setup_fee_paid BOOLEAN DEFAULT false;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS is_trial BOOLEAN DEFAULT true;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN DEFAULT true;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DEFAULT 3;
@@ -13,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
   name VARCHAR(50),
   plan_name VARCHAR(50),
   display_name VARCHAR(100),
+  setup_fee DECIMAL(10,2) DEFAULT 0,
   price_monthly DECIMAL(10,2) DEFAULT 0,
   price_yearly DECIMAL(10,2) DEFAULT 0,
   max_users INTEGER DEFAULT 5,
@@ -28,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS name VARCHAR(50);
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50);
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS setup_fee DECIMAL(10,2) DEFAULT 0;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price_monthly DECIMAL(10,2) DEFAULT 0;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price_yearly DECIMAL(10,2) DEFAULT 0;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_users INTEGER DEFAULT 5;
@@ -166,22 +170,32 @@ CREATE TABLE IF NOT EXISTS public.subscription_history (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Add missing columns to subscription_history for existing tables
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50);
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS action VARCHAR(50);
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS previous_plan VARCHAR(50);
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS new_plan VARCHAR(50);
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE public.subscription_history ADD COLUMN IF NOT EXISTS performed_by VARCHAR(100);
+
 -- Seed default subscription plans (safe upsert using WHERE NOT EXISTS)
-INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
-SELECT 'trial', 'trial', 'Free Trial', 0, 0, 2, 100, 500, '{"support": "email", "reports": "basic", "multi_location": false}'::jsonb, true
+-- Trial plan — free, no setup fee
+INSERT INTO public.subscription_plans (name, plan_name, display_name, setup_fee, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
+SELECT 'trial', 'trial', 'Free Trial', 0, 0, 0, 2, 100, 500, '{"support": "email", "reports": "basic", "multi_location": false}'::jsonb, true
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'trial');
 
-INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
-SELECT 'basic', 'basic', 'Basic Plan', 1700, 20000, 5, 1000, 5000, '{"support": "email", "reports": "standard", "multi_location": false, "pos_terminals": 2}'::jsonb, true
-WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'basic');
+-- Standard plan — one-time setup KSh 70,000 + KSh 20,000/year renewal
+INSERT INTO public.subscription_plans (name, plan_name, display_name, setup_fee, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
+SELECT 'standard', 'standard', 'Standard Plan', 70000, 0, 20000, 999, 999999, 999999, '{"support": "email_phone", "reports": "advanced", "multi_location": true, "pos_terminals": 999, "api_access": true}'::jsonb, true
+WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'standard');
 
-INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
-SELECT 'premium', 'premium', 'Premium Plan', 5000, 50000, 15, 10000, 50000, '{"support": "email_phone", "reports": "advanced", "multi_location": true, "pos_terminals": 5, "api_access": true}'::jsonb, true
-WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'premium');
+-- Update existing standard plan pricing if it already exists
+UPDATE public.subscription_plans
+SET setup_fee = 70000, price_monthly = 0, price_yearly = 20000, display_name = 'Standard Plan', updated_at = NOW()
+WHERE plan_name = 'standard';
 
-INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
-SELECT 'enterprise', 'enterprise', 'Enterprise Plan', 15000, 150000, 999, 999999, 999999, '{"support": "24_7", "reports": "custom", "multi_location": true, "pos_terminals": 999, "api_access": true, "custom_features": true}'::jsonb, true
-WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'enterprise');
+-- Deactivate old monthly plans (basic/premium/enterprise) — replaced by standard
+UPDATE public.subscription_plans SET is_active = false WHERE plan_name IN ('basic', 'premium', 'enterprise');
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_payments_tenant ON public.payments(tenant_id);

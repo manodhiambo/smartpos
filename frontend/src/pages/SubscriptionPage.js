@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { paymentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { FaCheck, FaTimes, FaPhone, FaCreditCard, FaClock } from 'react-icons/fa';
-import { formatCurrency, formatDate, formatNumber } from '../utils/helpers'; // Added formatNumber
+import { FaCheck, FaPhone, FaCreditCard, FaClock, FaStar, FaSync } from 'react-icons/fa';
+import { formatCurrency, formatDate } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import '../styles/Subscription.css';
 
 const SubscriptionPage = () => {
-  const { user, tenant, updateUser } = useAuth();
-  const [plans, setPlans] = useState([]);
+  const { user, tenant } = useAuth();
+  const [standardPlan, setStandardPlan] = useState(null);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [selectedMonths, setSelectedMonths] = useState(1);
+  const [paymentType, setPaymentType] = useState('setup'); // 'setup' | 'renewal'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [paymentId, setPaymentId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -32,9 +30,10 @@ const SubscriptionPage = () => {
         paymentsAPI.getPaymentHistory()
       ]);
 
-      setPlans(plansRes.data.data);
+      const plans = plansRes.data.data || [];
+      setStandardPlan(plans.find(p => p.plan_name === 'standard') || null);
       setSubscriptionInfo(subRes.data.data);
-      setPaymentHistory(paymentsRes.data.data);
+      setPaymentHistory(paymentsRes.data.data || []);
     } catch (error) {
       console.error('Failed to load subscription data:', error);
       toast.error('Failed to load subscription data');
@@ -43,18 +42,10 @@ const SubscriptionPage = () => {
     }
   };
 
-  const handleSelectPlan = (plan) => {
-    if (plan.plan_name === 'trial') {
-      toast.error('Cannot purchase trial plan');
-      return;
-    }
-    setSelectedPlan(plan);
+  const openPaymentModal = (type) => {
+    setPaymentType(type);
+    setPhoneNumber('');
     setShowPaymentModal(true);
-  };
-
-  const calculateTotal = () => {
-    if (!selectedPlan) return 0;
-    return selectedPlan.price_monthly * selectedMonths;
   };
 
   const handleInitiatePayment = async (e) => {
@@ -69,16 +60,12 @@ const SubscriptionPage = () => {
 
     try {
       const response = await paymentsAPI.initiatePayment({
-        planName: selectedPlan.plan_name,
-        months: selectedMonths,
+        payment_type: paymentType,
         phone: phoneNumber
       });
 
       if (response.data.success) {
-        setPaymentId(response.data.data.paymentId);
         toast.success('Payment request sent! Please check your phone.');
-        
-        // Start checking payment status
         checkPaymentStatus(response.data.data.paymentId);
       } else {
         toast.error(response.data.message || 'Failed to initiate payment');
@@ -90,57 +77,49 @@ const SubscriptionPage = () => {
     }
   };
 
-  const checkPaymentStatus = async (payId) => {
+  const checkPaymentStatus = (payId) => {
     let attempts = 0;
-    const maxAttempts = 30; // Check for 2 minutes (30 * 4 seconds)
+    const maxAttempts = 30;
 
     const interval = setInterval(async () => {
       attempts++;
-
       try {
         const response = await paymentsAPI.checkPaymentStatus(payId);
-        
-        if (response.data.data.status === 'completed') {
+        const { status } = response.data.data;
+
+        if (status === 'completed') {
           clearInterval(interval);
-          toast.success('Payment successful! Your subscription has been upgraded.');
+          toast.success(
+            paymentType === 'setup'
+              ? 'Setup fee paid! Your subscription is now active for 1 year.'
+              : 'Subscription renewed for 1 year!'
+          );
           setShowPaymentModal(false);
           setProcessingPayment(false);
           fetchData();
-          
-          // Refresh user session
           window.location.reload();
-        } else if (response.data.data.status === 'failed') {
+        } else if (status === 'failed') {
           clearInterval(interval);
           toast.error('Payment failed. Please try again.');
           setProcessingPayment(false);
         } else if (attempts >= maxAttempts) {
           clearInterval(interval);
-          toast.info('Payment status check timed out. Please refresh to see updates.');
+          toast.info('Payment timed out. Refresh to see updates.');
           setProcessingPayment(false);
         }
-      } catch (error) {
-        console.error('Status check error:', error);
+      } catch (err) {
+        console.error('Status check error:', err);
       }
-    }, 4000); // Check every 4 seconds
+    }, 4000);
   };
 
-  const getPlanFeatures = (features) => {
-    if (typeof features === 'string') {
-      try {
-        return JSON.parse(features);
-      } catch {
-        return {};
-      }
-    }
-    return features || {};
-  };
+  const isOnTrial = subscriptionInfo?.is_trial;
+  const setupFeePaid = subscriptionInfo?.setup_fee_paid;
+  const isActive = subscriptionInfo?.subscription_status === 'active';
+  const daysLeft = Math.max(0, Math.floor(subscriptionInfo?.days_remaining || 0));
 
   if (loading) {
-    return (
-      <div className="loading">
-        <div className="spinner"></div>
-      </div>
-    );
+    return <div className="loading"><div className="spinner"></div></div>;
   }
 
   return (
@@ -148,11 +127,11 @@ const SubscriptionPage = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Subscription & Billing</h1>
-          <p className="page-subtitle">Manage your subscription plan</p>
+          <p className="page-subtitle">Manage your SmartPOS subscription</p>
         </div>
       </div>
 
-      {/* Current Subscription */}
+      {/* Current Status */}
       {subscriptionInfo && (
         <div className="current-subscription">
           <h2>Current Plan</h2>
@@ -160,97 +139,119 @@ const SubscriptionPage = () => {
             <div className="subscription-details">
               <div className="plan-badge">
                 {subscriptionInfo.subscription_plan?.toUpperCase()}
-                {subscriptionInfo.is_trial && <span className="trial-badge">Trial</span>}
+                {isOnTrial && <span className="trial-badge">Trial</span>}
               </div>
-              <h3>{subscriptionInfo.display_name || 'Free Trial'}</h3>
-              <p className="plan-price">
-                {subscriptionInfo.monthly_price > 0 
-                  ? formatCurrency(subscriptionInfo.monthly_price) + '/month'
-                  : 'Free'}
-              </p>
-              
+              <h3>{isOnTrial ? 'Free Trial' : (subscriptionInfo.display_name || 'Standard Plan')}</h3>
+
               <div className="subscription-status">
                 <div className="status-item">
                   <FaClock />
                   <div>
                     <span className="status-label">
-                      {subscriptionInfo.is_trial ? 'Trial Ends' : 'Renews On'}
+                      {isOnTrial ? 'Trial Ends' : 'Subscription Expires'}
                     </span>
                     <span className="status-value">
-                      {formatDate(subscriptionInfo.is_trial ? subscriptionInfo.trial_ends_at : subscriptionInfo.subscription_ends_at)}
+                      {formatDate(isOnTrial
+                        ? subscriptionInfo.trial_ends_at
+                        : subscriptionInfo.subscription_ends_at
+                      )}
                     </span>
                   </div>
                 </div>
                 <div className="status-item">
-                  <span className={`status-badge ${subscriptionInfo.days_remaining <= 7 ? 'warning' : 'success'}`}>
-                    {Math.max(0, Math.floor(subscriptionInfo.days_remaining))} days remaining
+                  <span className={`status-badge ${daysLeft <= 30 ? 'warning' : 'success'}`}>
+                    {daysLeft} days remaining
                   </span>
                 </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="subscription-actions" style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {!setupFeePaid && (
+                  <button className="btn btn-primary" onClick={() => openPaymentModal('setup')}>
+                    <FaCreditCard /> Pay Setup Fee — {formatCurrency(standardPlan?.setup_fee || 70000)}
+                  </button>
+                )}
+                {setupFeePaid && (
+                  <button className="btn btn-outline" onClick={() => openPaymentModal('renewal')}>
+                    <FaSync /> Renew — {formatCurrency(standardPlan?.price_yearly || 20000)}/year
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Available Plans */}
+      {/* Pricing Overview */}
       <div className="plans-section">
-        <h2>Available Plans</h2>
-        <div className="plans-grid">
-          {plans.map((plan) => {
-            const features = getPlanFeatures(plan.features);
-            const isCurrentPlan = subscriptionInfo?.subscription_plan === plan.plan_name;
-            
-            return (
-              <div 
-                key={plan.id} 
-                className={`plan-card ${plan.plan_name === 'premium' ? 'featured' : ''} ${isCurrentPlan ? 'current' : ''}`}
+        <h2>SmartPOS Pricing</h2>
+        <div className="plans-grid pricing-grid">
+
+          {/* Setup Fee */}
+          <div className="plan-card featured">
+            <div className="featured-badge">One-Time</div>
+            <h3>Setup Fee</h3>
+            <div className="plan-price-large">
+              <span className="currency">KES</span>
+              <span className="amount">{(standardPlan?.setup_fee || 70000).toLocaleString()}</span>
+            </div>
+            <p className="plan-yearly" style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Paid once to activate your account
+            </p>
+            <ul className="plan-features">
+              <li><FaCheck /> Full system setup &amp; onboarding</li>
+              <li><FaCheck /> Unlimited products &amp; users</li>
+              <li><FaCheck /> Multi-location support</li>
+              <li><FaCheck /> M-Pesa integration</li>
+              <li><FaCheck /> First year subscription included</li>
+            </ul>
+            {!setupFeePaid ? (
+              <button
+                className="btn btn-primary btn-block"
+                onClick={() => openPaymentModal('setup')}
               >
-                {plan.plan_name === 'premium' && (
-                  <div className="featured-badge">Most Popular</div>
-                )}
-                {isCurrentPlan && (
-                  <div className="current-plan-badge">Current Plan</div>
-                )}
+                <FaCreditCard /> Pay Setup Fee
+              </button>
+            ) : (
+              <button className="btn btn-outline btn-block" disabled>
+                <FaCheck /> Already Paid
+              </button>
+            )}
+          </div>
 
-                <h3>{plan.display_name}</h3>
-                <div className="plan-price-large">
-                  <span className="currency">KES</span>
-                  <span className="amount">{formatCurrency(plan.price_monthly).replace('KES ', '')}</span>
-                  <span className="period">/month</span>
-                </div>
-                <p className="plan-yearly">
-                  or {formatCurrency(plan.price_yearly)}/year (Save {Math.round((1 - (plan.price_yearly / (plan.price_monthly * 12))) * 100)}%)
-                </p>
+          {/* Annual Renewal */}
+          <div className="plan-card">
+            <h3>Annual Renewal</h3>
+            <div className="plan-price-large">
+              <span className="currency">KES</span>
+              <span className="amount">{(standardPlan?.price_yearly || 20000).toLocaleString()}</span>
+              <span className="period">/year</span>
+            </div>
+            <p className="plan-yearly" style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Paid every year to keep access active
+            </p>
+            <ul className="plan-features">
+              <li><FaCheck /> Continued full access</li>
+              <li><FaCheck /> Software updates</li>
+              <li><FaCheck /> Email &amp; phone support</li>
+              <li><FaCheck /> Cloud data backup</li>
+              <li><FaStar /> Priority support</li>
+            </ul>
+            {setupFeePaid ? (
+              <button
+                className="btn btn-primary btn-block"
+                onClick={() => openPaymentModal('renewal')}
+              >
+                <FaSync /> Renew Subscription
+              </button>
+            ) : (
+              <button className="btn btn-outline btn-block" disabled>
+                Pay setup fee first
+              </button>
+            )}
+          </div>
 
-                <ul className="plan-features">
-                  <li><FaCheck /> Up to {formatNumber(plan.max_users)} users</li>
-                  <li><FaCheck /> {formatNumber(plan.max_products)} products</li>
-                  <li><FaCheck /> {formatNumber(plan.max_transactions_per_month)} transactions/month</li>
-                  {features.multi_location ? (
-                    <li><FaCheck /> Multi-location support</li>
-                  ) : (
-                    <li className="disabled"><FaTimes /> Multi-location support</li>
-                  )}
-                  {features.api_access ? (
-                    <li><FaCheck /> API Access</li>
-                  ) : (
-                    <li className="disabled"><FaTimes /> API Access</li>
-                  )}
-                  {features.support && (
-                    <li><FaCheck /> {features.support.replace('_', ' ')} support</li>
-                  )}
-                </ul>
-
-                <button 
-                  className={`btn ${plan.plan_name === 'premium' ? 'btn-primary' : 'btn-outline'} btn-block`}
-                  onClick={() => handleSelectPlan(plan)}
-                  disabled={plan.plan_name === 'trial' || isCurrentPlan}
-                >
-                  {isCurrentPlan ? 'Current Plan' : 'Select Plan'}
-                </button>
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -263,8 +264,7 @@ const SubscriptionPage = () => {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Plan</th>
-                  <th>Duration</th>
+                  <th>Type</th>
                   <th>Amount</th>
                   <th>Method</th>
                   <th>Status</th>
@@ -275,8 +275,11 @@ const SubscriptionPage = () => {
                 {paymentHistory.map((payment) => (
                   <tr key={payment.id}>
                     <td>{formatDate(payment.created_at)}</td>
-                    <td><span className="badge badge-info">{payment.subscription_period}</span></td>
-                    <td>{payment.subscription_months} month(s)</td>
+                    <td>
+                      <span className={`badge ${payment.payment_for === 'setup' ? 'badge-info' : 'badge-success'}`}>
+                        {payment.payment_for === 'setup' ? 'Setup Fee' : 'Annual Renewal'}
+                      </span>
+                    </td>
                     <td>{formatCurrency(payment.amount)}</td>
                     <td>{payment.payment_method?.toUpperCase()}</td>
                     <td>
@@ -294,11 +297,11 @@ const SubscriptionPage = () => {
       )}
 
       {/* Payment Modal */}
-      {showPaymentModal && selectedPlan && (
+      {showPaymentModal && (
         <div className="modal-overlay" onClick={() => !processingPayment && setShowPaymentModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Complete Payment</h2>
+              <h2>{paymentType === 'setup' ? 'Pay Setup Fee' : 'Renew Subscription'}</h2>
               {!processingPayment && (
                 <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
               )}
@@ -306,27 +309,33 @@ const SubscriptionPage = () => {
 
             <div className="payment-modal-body">
               <div className="selected-plan-info">
-                <h3>{selectedPlan.display_name}</h3>
-                <p className="plan-description">
-                  {formatCurrency(selectedPlan.price_monthly)}/month
-                </p>
+                <h3>{paymentType === 'setup' ? 'One-Time Setup Fee' : 'Annual Subscription Renewal'}</h3>
+              </div>
+
+              <div className="payment-summary" style={{ marginBottom: 20 }}>
+                <div className="summary-row total">
+                  <span><strong>Amount Due</strong></span>
+                  <span><strong>
+                    {formatCurrency(
+                      paymentType === 'setup'
+                        ? (standardPlan?.setup_fee || 70000)
+                        : (standardPlan?.price_yearly || 20000)
+                    )}
+                  </strong></span>
+                </div>
+                {paymentType === 'setup' && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+                    Includes first year of subscription. Annual renewal of KES 20,000 applies thereafter.
+                  </p>
+                )}
+                {paymentType === 'renewal' && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+                    Extends your subscription by 1 year from the current expiry date.
+                  </p>
+                )}
               </div>
 
               <form onSubmit={handleInitiatePayment}>
-                <div className="input-group">
-                  <label>Subscription Duration</label>
-                  <select 
-                    value={selectedMonths} 
-                    onChange={(e) => setSelectedMonths(parseInt(e.target.value))}
-                    disabled={processingPayment}
-                  >
-                    <option value="1">1 Month</option>
-                    <option value="3">3 Months (Save 5%)</option>
-                    <option value="6">6 Months (Save 10%)</option>
-                    <option value="12">12 Months (Save 15%)</option>
-                  </select>
-                </div>
-
                 <div className="input-group">
                   <label>M-Pesa Phone Number *</label>
                   <div className="input-with-icon">
@@ -340,31 +349,14 @@ const SubscriptionPage = () => {
                       disabled={processingPayment}
                     />
                   </div>
-                  <small>Enter the phone number to receive payment prompt</small>
-                </div>
-
-                <div className="payment-summary">
-                  <div className="summary-row">
-                    <span>Subtotal ({selectedMonths} month{selectedMonths > 1 ? 's' : ''})</span>
-                    <span>{formatCurrency(selectedPlan.price_monthly * selectedMonths)}</span>
-                  </div>
-                  {selectedMonths >= 3 && (
-                    <div className="summary-row discount">
-                      <span>Discount</span>
-                      <span>-{formatCurrency(selectedPlan.price_monthly * selectedMonths * (selectedMonths >= 12 ? 0.15 : selectedMonths >= 6 ? 0.10 : 0.05))}</span>
-                    </div>
-                  )}
-                  <div className="summary-row total">
-                    <span><strong>Total Amount</strong></span>
-                    <span><strong>{formatCurrency(calculateTotal())}</strong></span>
-                  </div>
+                  <small>Enter the M-Pesa number to receive the payment prompt</small>
                 </div>
 
                 {processingPayment ? (
                   <div className="payment-processing">
                     <div className="spinner"></div>
                     <p>Waiting for payment confirmation...</p>
-                    <small>Please complete the payment on your phone</small>
+                    <small>Complete the payment on your phone</small>
                   </div>
                 ) : (
                   <button type="submit" className="btn btn-primary btn-block">

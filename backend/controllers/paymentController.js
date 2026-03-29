@@ -4,46 +4,62 @@ const subscriptionService = require('../services/subscriptionService');
 
 /**
  * Initiate subscription payment
+ * payment_type: 'setup' (KSh 70,000 one-time) | 'renewal' (KSh 20,000/year)
  */
 exports.initiatePayment = async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
-    const { planName, months, phone } = req.body;
+    const { payment_type, phone } = req.body;
 
-    // Validate input
-    if (!planName || !months || !phone) {
+    if (!payment_type || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Plan name, duration, and phone number are required'
+        message: 'Payment type and phone number are required'
       });
     }
 
-    // Get plan details
-    const plan = await subscriptionService.getPlanByName(planName);
+    if (!['setup', 'renewal'].includes(payment_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'payment_type must be "setup" or "renewal"'
+      });
+    }
+
+    // Get standard plan
+    const plan = await subscriptionService.getPlanByName('standard');
     if (!plan) {
       return res.status(404).json({
         success: false,
-        message: 'Invalid subscription plan'
+        message: 'Standard plan not found'
       });
     }
 
-    if (planName === 'trial') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot purchase trial plan'
-      });
+    // Validate state — can't pay setup fee twice
+    if (payment_type === 'setup') {
+      const tenantRow = await queryMain(
+        'SELECT setup_fee_paid, is_trial FROM public.tenants WHERE id = $1',
+        [tenantId]
+      );
+      if (tenantRow.rows[0]?.setup_fee_paid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Setup fee has already been paid. Use renewal instead.'
+        });
+      }
     }
 
-    // Calculate amount
-    const amount = plan.price_monthly * months;
+    const amount = payment_type === 'setup' ? plan.setup_fee : plan.price_yearly;
+    const description = payment_type === 'setup'
+      ? 'SmartPOS Setup Fee (One-time)'
+      : 'SmartPOS Annual Subscription Renewal';
 
     // Create payment record
     const paymentResult = await queryMain(
-      `INSERT INTO public.payments 
-        (tenant_id, payment_method, amount, mpesa_phone, subscription_period, subscription_months, status)
-      VALUES ($1, 'mpesa', $2, $3, $4, $5, 'pending')
+      `INSERT INTO public.payments
+        (tenant_id, payment_method, amount, mpesa_phone, payment_for, subscription_period, subscription_months, status)
+      VALUES ($1, 'mpesa', $2, $3, $4, 'standard', 12, 'pending')
       RETURNING id`,
-      [tenantId, amount, phone, planName, months]
+      [tenantId, amount, phone, payment_type]
     );
 
     const paymentId = paymentResult.rows[0].id;
@@ -53,14 +69,13 @@ exports.initiatePayment = async (req, res) => {
       phone,
       amount,
       `SUB${paymentId}`,
-      `SmartPOS ${plan.display_name} - ${months} month(s)`
+      description
     );
 
     if (stkResult.success) {
-      // Update payment with M-Pesa details
       await queryMain(
-        `UPDATE public.payments 
-        SET 
+        `UPDATE public.payments
+        SET
           mpesa_checkout_request_id = $1,
           mpesa_merchant_request_id = $2,
           metadata = $3,
@@ -76,19 +91,18 @@ exports.initiatePayment = async (req, res) => {
 
       res.json({
         success: true,
-        message: 'Payment initiated. Please check your phone to complete payment.',
+        message: 'Payment request sent! Please check your phone to complete payment.',
         data: {
           paymentId,
           checkoutRequestId: stkResult.checkoutRequestId,
-          customerMessage: stkResult.customerMessage
+          customerMessage: stkResult.customerMessage,
+          amount,
+          payment_type
         }
       });
     } else {
-      // Update payment as failed
       await queryMain(
-        `UPDATE public.payments 
-        SET status = 'failed', metadata = $1, updated_at = NOW()
-        WHERE id = $2`,
+        `UPDATE public.payments SET status = 'failed', metadata = $1, updated_at = NOW() WHERE id = $2`,
         [JSON.stringify(stkResult), paymentId]
       );
 
@@ -116,8 +130,7 @@ exports.checkPaymentStatus = async (req, res) => {
     const tenantId = req.user.tenantId;
 
     const result = await queryMain(
-      `SELECT * FROM public.payments 
-      WHERE id = $1 AND tenant_id = $2`,
+      `SELECT * FROM public.payments WHERE id = $1 AND tenant_id = $2`,
       [paymentId, tenantId]
     );
 
@@ -130,15 +143,13 @@ exports.checkPaymentStatus = async (req, res) => {
 
     const payment = result.rows[0];
 
-    // If still pending, query M-Pesa
     if (payment.status === 'pending' && payment.mpesa_checkout_request_id) {
       const stkStatus = await mpesaService.queryStkPush(payment.mpesa_checkout_request_id);
-      
+
       if (stkStatus.success) {
-        // Payment successful - update database
         await queryMain(
-          `UPDATE public.payments 
-          SET 
+          `UPDATE public.payments
+          SET
             status = 'completed',
             mpesa_result_code = '0',
             mpesa_result_desc = 'Success',
@@ -149,27 +160,21 @@ exports.checkPaymentStatus = async (req, res) => {
           [paymentId]
         );
 
-        // Upgrade subscription
-        await subscriptionService.upgradeSubscription(
-          tenantId,
-          payment.subscription_period,
-          payment.subscription_months
-        );
+        // Activate or renew based on payment type
+        if (payment.payment_for === 'setup') {
+          await subscriptionService.activateAfterSetup(tenantId);
+        } else {
+          await subscriptionService.renewSubscription(tenantId);
+        }
 
         payment.status = 'completed';
       } else if (stkStatus.resultCode !== '0' && stkStatus.resultCode !== '1032') {
-        // Payment failed (but not timeout)
         await queryMain(
-          `UPDATE public.payments 
-          SET 
-            status = 'failed',
-            mpesa_result_code = $1,
-            mpesa_result_desc = $2,
-            updated_at = NOW()
+          `UPDATE public.payments
+          SET status = 'failed', mpesa_result_code = $1, mpesa_result_desc = $2, updated_at = NOW()
           WHERE id = $3`,
           [stkStatus.resultCode, stkStatus.resultDesc, paymentId]
         );
-
         payment.status = 'failed';
       }
     }
@@ -180,8 +185,7 @@ exports.checkPaymentStatus = async (req, res) => {
         paymentId: payment.id,
         status: payment.status,
         amount: payment.amount,
-        plan: payment.subscription_period,
-        months: payment.subscription_months,
+        payment_type: payment.payment_for,
         createdAt: payment.created_at,
         completedAt: payment.payment_date
       }
@@ -205,10 +209,8 @@ exports.mpesaCallback = async (req, res) => {
 
     const callbackData = mpesaService.processCallback(req.body);
 
-    // Find payment by checkout request ID
     const paymentResult = await queryMain(
-      `SELECT * FROM public.payments 
-      WHERE mpesa_checkout_request_id = $1`,
+      `SELECT * FROM public.payments WHERE mpesa_checkout_request_id = $1`,
       [callbackData.checkoutRequestId]
     );
 
@@ -220,10 +222,9 @@ exports.mpesaCallback = async (req, res) => {
     const payment = paymentResult.rows[0];
 
     if (callbackData.success) {
-      // Payment successful
       await queryMain(
-        `UPDATE public.payments 
-        SET 
+        `UPDATE public.payments
+        SET
           status = 'completed',
           mpesa_transaction_id = $1,
           mpesa_result_code = $2,
@@ -242,33 +243,20 @@ exports.mpesaCallback = async (req, res) => {
         ]
       );
 
-      // Upgrade subscription
-      await subscriptionService.upgradeSubscription(
-        payment.tenant_id,
-        payment.subscription_period,
-        payment.subscription_months
-      );
+      if (payment.payment_for === 'setup') {
+        await subscriptionService.activateAfterSetup(payment.tenant_id);
+      } else {
+        await subscriptionService.renewSubscription(payment.tenant_id);
+      }
 
-      console.log(`✅ Payment successful for tenant ${payment.tenant_id}`);
+      console.log(`✅ Payment successful for tenant ${payment.tenant_id} (${payment.payment_for})`);
     } else {
-      // Payment failed
       await queryMain(
-        `UPDATE public.payments 
-        SET 
-          status = 'failed',
-          mpesa_result_code = $1,
-          mpesa_result_desc = $2,
-          metadata = $3,
-          updated_at = NOW()
+        `UPDATE public.payments
+        SET status = 'failed', mpesa_result_code = $1, mpesa_result_desc = $2, metadata = $3, updated_at = NOW()
         WHERE id = $4`,
-        [
-          callbackData.resultCode,
-          callbackData.resultDesc,
-          JSON.stringify(callbackData),
-          payment.id
-        ]
+        [callbackData.resultCode, callbackData.resultDesc, JSON.stringify(callbackData), payment.id]
       );
-
       console.log(`❌ Payment failed for tenant ${payment.tenant_id}: ${callbackData.resultDesc}`);
     }
 
@@ -287,12 +275,11 @@ exports.getPaymentHistory = async (req, res) => {
     const tenantId = req.user.tenantId;
 
     const result = await queryMain(
-      `SELECT 
-        id, amount, currency, status, payment_method,
-        subscription_period, subscription_months,
-        mpesa_transaction_id, payment_date, created_at
-      FROM public.payments 
-      WHERE tenant_id = $1 
+      `SELECT
+        id, amount, currency, status, payment_method, payment_for,
+        subscription_period, mpesa_transaction_id, payment_date, created_at
+      FROM public.payments
+      WHERE tenant_id = $1
       ORDER BY created_at DESC`,
       [tenantId]
     );
@@ -317,11 +304,7 @@ exports.getPaymentHistory = async (req, res) => {
 exports.getPlans = async (req, res) => {
   try {
     const plans = await subscriptionService.getPlans();
-
-    res.json({
-      success: true,
-      data: plans
-    });
+    res.json({ success: true, data: plans });
   } catch (error) {
     console.error('Get plans error:', error);
     res.status(500).json({
@@ -338,13 +321,8 @@ exports.getPlans = async (req, res) => {
 exports.getSubscriptionInfo = async (req, res) => {
   try {
     const tenantId = req.user.tenantId;
-
     const subscription = await subscriptionService.getTenantSubscription(tenantId);
-
-    res.json({
-      success: true,
-      data: subscription
-    });
+    res.json({ success: true, data: subscription });
   } catch (error) {
     console.error('Get subscription info error:', error);
     res.status(500).json({
