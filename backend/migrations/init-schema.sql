@@ -13,27 +13,23 @@ ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_account_number VARCHAR
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- Drop NOT NULL on ALL legacy columns that are not relevant to a POS business
--- This covers school management system columns and any other legacy NOT NULL fields
+-- Drop NOT NULL on EVERY non-system column in tenants except the primary key.
+-- This ensures any legacy column from a repurposed database never blocks our INSERTs.
 DO $$
 DECLARE
   col TEXT;
 BEGIN
-  FOREACH col IN ARRAY ARRAY[
-    'school_name', 'school_code', 'school_type', 'school_level',
-    'county', 'district', 'email', 'phone', 'address', 'name',
-    'code', 'type', 'level', 'logo', 'website',
-    'contact_person', 'contact_email', 'contact_phone',
-    'registration_number', 'license_number'
-  ] LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'tenants'
-        AND column_name = col AND is_nullable = 'NO'
-    ) THEN
-      EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
-      RAISE NOTICE 'Dropped NOT NULL on tenants.%', col;
-    END IF;
+  FOR col IN
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'tenants'
+      AND is_nullable = 'NO'
+      AND column_name <> 'id'           -- keep PK not-null
+      AND column_default IS NULL        -- skip columns with defaults (they're fine)
+  LOOP
+    EXECUTE 'ALTER TABLE public.tenants ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
+    RAISE NOTICE 'Dropped NOT NULL on tenants.%', col;
   END LOOP;
 END $$;
 

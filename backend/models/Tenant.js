@@ -22,7 +22,8 @@ class Tenant {
     // Insert tenant
     const result = await queryMain(
       `INSERT INTO public.tenants (
-        tenant_name, tenant_schema, business_name, business_email,
+        tenant_name, tenant_schema,
+        business_name, business_email,
         business_phone, business_address, mpesa_till_number,
         mpesa_paybill, mpesa_account_number, subscription_status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)

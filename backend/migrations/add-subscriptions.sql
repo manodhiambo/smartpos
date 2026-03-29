@@ -36,23 +36,22 @@ ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_transactions_
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS features JSONB;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
--- Drop NOT NULL on ALL legacy columns in subscription_plans that block inserts
+-- Drop NOT NULL on EVERY non-system column in subscription_plans except the primary key.
 DO $$
 DECLARE
   col TEXT;
 BEGIN
-  FOREACH col IN ARRAY ARRAY[
-    'name', 'code', 'label', 'title', 'base_price', 'price',
-    'amount', 'description', 'slug', 'type', 'category'
-  ] LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'subscription_plans'
-        AND column_name = col AND is_nullable = 'NO'
-    ) THEN
-      EXECUTE 'ALTER TABLE public.subscription_plans ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
-      RAISE NOTICE 'Dropped NOT NULL on subscription_plans.%', col;
-    END IF;
+  FOR col IN
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'subscription_plans'
+      AND is_nullable = 'NO'
+      AND column_name <> 'id'
+      AND column_default IS NULL
+  LOOP
+    EXECUTE 'ALTER TABLE public.subscription_plans ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
+    RAISE NOTICE 'Dropped NOT NULL on subscription_plans.%', col;
   END LOOP;
 END $$;
 
