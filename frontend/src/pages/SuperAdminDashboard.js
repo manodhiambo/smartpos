@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { superAdminAPI } from '../services/api';
-import { 
-  FaStore, FaCheckCircle, FaBan, FaMoneyBillWave, FaChartLine, 
-  FaEye, FaPlus, FaEdit, FaTrash, FaClock, FaReceipt 
+import { useAuth } from '../context/AuthContext';
+import {
+  FaStore, FaCheckCircle, FaBan, FaMoneyBillWave, FaChartLine,
+  FaEye, FaPlus, FaEdit, FaTrash, FaClock, FaReceipt, FaUserSecret
 } from 'react-icons/fa';
 import { formatCurrency, formatNumber, formatDate } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import '../styles/SuperAdmin.css';
 
 const SuperAdminDashboard = () => {
+  const navigate = useNavigate();
+  const { impersonate } = useAuth();
   const [stats, setStats] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -97,6 +101,14 @@ const SuperAdminDashboard = () => {
       fetchDashboardData();
     } catch (error) {
       toast.error('Failed to activate tenant');
+    }
+  };
+
+  const handleImpersonate = async (tenantId, businessName) => {
+    if (!window.confirm(`Enter ${businessName}'s session? You will see and interact with their live data.`)) return;
+    const result = await impersonate(tenantId);
+    if (result.success) {
+      navigate('/dashboard');
     }
   };
 
@@ -414,6 +426,13 @@ const SuperAdminDashboard = () => {
                           >
                             <FaEye />
                           </button>
+                          <button
+                            className="btn-icon btn-icon-warning"
+                            onClick={() => handleImpersonate(tenant.id, tenant.business_name)}
+                            title="Impersonate (view as tenant)"
+                          >
+                            <FaUserSecret />
+                          </button>
                           {tenant.subscription_status === 'active' ? (
                             <button
                               className="btn-icon btn-icon-danger"
@@ -603,6 +622,13 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
               <div className="modal-actions">
+                <button
+                  className="btn btn-warning"
+                  onClick={() => { setShowTenantModal(false); handleImpersonate(selectedTenant.tenant.id, selectedTenant.tenant.business_name); }}
+                  title="Enter this tenant's session"
+                >
+                  <FaUserSecret /> Impersonate
+                </button>
                 <button className="btn btn-primary" onClick={() => { setShowAssignPlanModal(true); setShowTenantModal(false); setFormData({}); }}>
                   Assign Plan
                 </button>

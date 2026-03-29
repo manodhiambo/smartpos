@@ -4,6 +4,7 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import SubscriptionBanner from '../common/SubscriptionBanner';
 import HelvinoCredit from '../common/HelvinoCredit';
+import ImpersonationBanner from '../common/ImpersonationBanner';
 import '../../styles/Layout.css';
 
 const Layout = ({ children }) => {
@@ -19,6 +20,7 @@ const Layout = ({ children }) => {
 
   return (
     <div className="layout">
+      <ImpersonationBanner />
       <Navbar toggleSidebar={toggleSidebar} />
       <div className="layout-container">
         <Sidebar isOpen={sidebarOpen} />
