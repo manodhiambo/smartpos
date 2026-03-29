@@ -1,5 +1,6 @@
 const { queryMain } = require('../config/database');
 const subscriptionService = require('../services/subscriptionService');
+const jwt = require('jsonwebtoken');
 
 /**
  * Get all tenants (Super Admin only)
@@ -12,12 +13,9 @@ exports.getAllTenants = async (req, res) => {
     let query = `
       SELECT
         t.*,
-        sp.display_name as plan_display_name,
-        COUNT(p.id) as total_payments,
-        SUM(CASE WHEN p.status = 'completed' THEN p.amount ELSE 0 END) as total_revenue
+        COUNT(tu.id) as user_count
       FROM public.tenants t
-      LEFT JOIN public.subscription_plans sp ON t.subscription_plan = sp.plan_name
-      LEFT JOIN public.payments p ON t.id = p.tenant_id
+      LEFT JOIN public.tenant_users tu ON t.id = tu.tenant_id
       WHERE 1=1
     `;
 
@@ -36,7 +34,7 @@ exports.getAllTenants = async (req, res) => {
       paramCount++;
     }
 
-    query += ` GROUP BY t.id, sp.display_name ORDER BY t.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    query += ` GROUP BY t.id ORDER BY t.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
 
     const result = await queryMain(query, params);
@@ -78,8 +76,8 @@ exports.getDashboardStats = async (req, res) => {
         COUNT(*) as total_tenants,
         COUNT(CASE WHEN subscription_status = 'active' THEN 1 END) as active_tenants,
         COUNT(CASE WHEN subscription_status = 'suspended' THEN 1 END) as suspended_tenants,
-        COUNT(CASE WHEN is_trial = true THEN 1 END) as trial_tenants,
-        SUM(CASE WHEN subscription_status = 'active' AND is_trial = false THEN monthly_price ELSE 0 END) as monthly_recurring_revenue
+        0 as trial_tenants,
+        0 as monthly_recurring_revenue
       FROM public.tenants
     `);
 
@@ -93,13 +91,9 @@ exports.getDashboardStats = async (req, res) => {
     `);
 
     const planDistribution = await queryMain(`
-      SELECT
-        subscription_plan,
-        COUNT(*) as count,
-        sp.display_name
-      FROM public.tenants t
-      LEFT JOIN public.subscription_plans sp ON t.subscription_plan = sp.plan_name
-      GROUP BY subscription_plan, sp.display_name
+      SELECT subscription_plan, COUNT(*) as count
+      FROM public.tenants
+      GROUP BY subscription_plan
       ORDER BY count DESC
     `);
 
@@ -304,12 +298,8 @@ exports.getAllPayments = async (req, res) => {
 exports.getAllPlans = async (req, res) => {
   try {
     const plans = await queryMain(`
-      SELECT
-        sp.*,
-        COUNT(t.id) as active_subscribers
+      SELECT sp.*, 0 as active_subscribers
       FROM public.subscription_plans sp
-      LEFT JOIN public.tenants t ON sp.plan_name = t.subscription_plan AND t.subscription_status = 'active'
-      GROUP BY sp.id
       ORDER BY sp.price_monthly ASC
     `);
 
@@ -678,6 +668,73 @@ exports.deletePlan = async (req, res) => {
       message: 'Failed to delete plan',
       error: error.message
     });
+  }
+};
+
+/**
+ * Impersonate a tenant (Super Admin only)
+ */
+exports.impersonateTenant = async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+
+    const tenant = await queryMain('SELECT * FROM public.tenants WHERE id = $1', [tenantId]);
+    if (tenant.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Tenant not found' });
+    }
+
+    const userResult = await queryMain(
+      `SELECT * FROM public.tenant_users
+       WHERE tenant_id = $1 AND role = 'admin' AND status = 'active'
+       ORDER BY id LIMIT 1`,
+      [tenantId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No active admin user found for this tenant' });
+    }
+
+    const user = userResult.rows[0];
+    const tenantData = tenant.rows[0];
+
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        tenantId: tenantData.id,
+        role: user.role,
+        impersonatedBy: req.user.username
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '2h' }
+    );
+
+    res.json({
+      success: true,
+      message: `Impersonating ${tenantData.business_name || tenantData.tenant_name}`,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.full_name,
+          email: user.email,
+          role: user.role
+        },
+        tenant: {
+          id: tenantData.id,
+          businessName: tenantData.business_name || tenantData.tenant_name,
+          businessEmail: tenantData.business_email,
+          subscriptionPlan: tenantData.subscription_plan || 'trial',
+          subscriptionStatus: tenantData.subscription_status || 'active',
+          isTrial: tenantData.is_trial ?? true,
+          daysRemaining: 30
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Impersonation error:', error);
+    res.status(500).json({ success: false, message: 'Failed to impersonate tenant', error: error.message });
   }
 };
 

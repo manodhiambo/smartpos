@@ -18,6 +18,7 @@ router.post('/tenants/:tenantId/activate', superAdminController.activateTenant);
 router.post('/tenants/:tenantId/assign-plan', superAdminController.assignPlan);
 router.post('/tenants/:tenantId/extend-trial', superAdminController.extendTrial);
 router.post('/tenants/:tenantId/record-payment', superAdminController.recordPayment);
+router.post('/tenants/:tenantId/impersonate', superAdminController.impersonateTenant);
 
 // Payments
 router.get('/payments', superAdminController.getAllPayments);

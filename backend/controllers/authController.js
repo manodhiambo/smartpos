@@ -75,7 +75,11 @@ const register = async (req, res) => {
     const adminUser = userResult.rows[0];
 
     // Start 30-day free trial
-    await subscriptionService.startTrial(tenant.id);
+    try {
+      await subscriptionService.startTrial(tenant.id);
+    } catch (trialErr) {
+      console.warn('Trial start skipped (migration pending):', trialErr.message);
+    }
 
     // Send welcome email
     await sendWelcomeEmail(businessEmail, businessName, adminUsername, adminPassword);

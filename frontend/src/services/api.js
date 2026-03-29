@@ -155,6 +155,7 @@ export const superAdminAPI = {
   assignPlan: (tenantId, data) => api.post(`/super-admin/tenants/${tenantId}/assign-plan`, data),
   extendTrial: (tenantId, days) => api.post(`/super-admin/tenants/${tenantId}/extend-trial`, { days }),
   recordPayment: (tenantId, data) => api.post(`/super-admin/tenants/${tenantId}/record-payment`, data),
+  impersonateTenant: (tenantId) => api.post(`/super-admin/tenants/${tenantId}/impersonate`),
   
   // Payments
   getAllPayments: (params) => api.get('/super-admin/payments', { params }),
