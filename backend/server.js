@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const { testConnection, queryMain } = require('./config/database');
 const routes = require('./routes');
+const Tenant = require('./models/Tenant');
 const fs = require('fs');
 const path = require('path');
 
@@ -137,6 +138,12 @@ const startServer = async () => {
       'Subscription migrations applied'
     );
 
+    // Patch existing tenant schemas to add missing columns
+    await runMigrationFile(
+      path.join(__dirname, 'migrations/fix-tenant-schemas.sql'),
+      'Tenant schema columns patched'
+    );
+
     // Seed demo tenant and admin user if not present
     try {
       const bcrypt = require('bcryptjs');
@@ -179,8 +186,35 @@ const startServer = async () => {
         );
         console.log('✅ Demo admin user password synced');
       }
+
+      // Ensure demo tenant schema and tables exist
+      try {
+        await Tenant.createTenantSchema('admin_tenant', tenantId);
+        console.log('✅ Demo tenant schema ready');
+      } catch (schemaErr) {
+        console.warn('⚠️  Demo tenant schema warning:', schemaErr.message);
+      }
     } catch (seedError) {
       console.warn('⚠️  Seed warning:', seedError.message);
+    }
+
+    // Ensure all tenant schemas are up to date (idempotent — CREATE IF NOT EXISTS)
+    try {
+      const allTenants = await queryMain(
+        'SELECT id, tenant_schema FROM public.tenants WHERE tenant_schema IS NOT NULL'
+      );
+      let updated = 0;
+      for (const row of allTenants.rows) {
+        try {
+          await Tenant.createTenantSchema(row.tenant_schema, row.id);
+          updated++;
+        } catch (e) {
+          console.warn(`⚠️  Schema update warning for ${row.tenant_schema}: ${e.message.split('\n')[0]}`);
+        }
+      }
+      if (updated > 0) console.log(`✅ Tenant schemas refreshed (${updated} tenants)`);
+    } catch (e) {
+      console.warn('⚠️  Tenant schema refresh warning:', e.message);
     }
 
     app.listen(PORT, '0.0.0.0', () => {

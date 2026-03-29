@@ -58,7 +58,7 @@ const register = async (req, res) => {
     });
 
     // Create tenant schema and tables
-    await Tenant.createTenantSchema(tenantSchema);
+    await Tenant.createTenantSchema(tenantSchema, tenant.id);
 
     // Hash password
     const passwordHash = await bcrypt.hash(adminPassword, 10);

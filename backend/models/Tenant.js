@@ -170,31 +170,38 @@ class Tenant {
   }
 
   /**
-   * Create a PostgreSQL schema for a new tenant and set up their tables
+   * Create a PostgreSQL schema for a new tenant and set up their tables.
+   * tenantId is used to create a `users` view so models can JOIN users by cashier_id/user_id.
    */
-  static async createTenantSchema(tenantSchema) {
+  static async createTenantSchema(tenantSchema, tenantId) {
     // Create the schema
     await queryMain(`CREATE SCHEMA IF NOT EXISTS "${tenantSchema}"`);
 
-    // Create per-tenant tables inside the schema
+    // products
     await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".products (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        sku VARCHAR(100),
         barcode VARCHAR(100),
         category VARCHAR(100),
-        buying_price DECIMAL(10,2) DEFAULT 0,
+        subcategory VARCHAR(100),
+        cost_price DECIMAL(10,2) DEFAULT 0,
         selling_price DECIMAL(10,2) DEFAULT 0,
-        stock_quantity INTEGER DEFAULT 0,
-        min_stock_level INTEGER DEFAULT 0,
-        unit VARCHAR(50) DEFAULT 'piece',
+        wholesale_price DECIMAL(10,2) DEFAULT 0,
+        vat_type VARCHAR(20) DEFAULT 'vat_inclusive',
+        unit_of_measure VARCHAR(50) DEFAULT 'pcs',
+        stock_quantity DECIMAL(10,3) DEFAULT 0,
+        reorder_level INTEGER DEFAULT 10,
+        expiry_tracking BOOLEAN DEFAULT false,
         description TEXT,
-        is_active BOOLEAN DEFAULT true,
+        status VARCHAR(20) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    // customers
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".customers (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -202,36 +209,54 @@ class Tenant {
         email VARCHAR(255),
         address TEXT,
         loyalty_points INTEGER DEFAULT 0,
+        credit_balance DECIMAL(10,2) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    // suppliers
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".suppliers (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
+        contact_person VARCHAR(255),
         phone VARCHAR(20),
         email VARCHAR(255),
         address TEXT,
+        payment_terms VARCHAR(50) DEFAULT 'cash',
+        tax_pin VARCHAR(50),
+        balance DECIMAL(10,2) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    // sales
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".sales (
         id SERIAL PRIMARY KEY,
-        receipt_number VARCHAR(50) UNIQUE,
-        customer_id INTEGER REFERENCES "${tenantSchema}".customers(id),
+        receipt_no VARCHAR(50) UNIQUE,
         cashier_id INTEGER,
+        customer_id INTEGER REFERENCES "${tenantSchema}".customers(id),
         subtotal DECIMAL(10,2) DEFAULT 0,
+        vat_amount DECIMAL(10,2) DEFAULT 0,
         discount DECIMAL(10,2) DEFAULT 0,
-        tax DECIMAL(10,2) DEFAULT 0,
-        total DECIMAL(10,2) DEFAULT 0,
+        total_amount DECIMAL(10,2) DEFAULT 0,
         payment_method VARCHAR(50) DEFAULT 'cash',
-        payment_reference VARCHAR(100),
+        amount_paid DECIMAL(10,2) DEFAULT 0,
+        change_amount DECIMAL(10,2) DEFAULT 0,
+        mpesa_code VARCHAR(100),
+        notes TEXT,
         status VARCHAR(20) DEFAULT 'completed',
-        void_reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    // sale_items
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".sale_items (
         id SERIAL PRIMARY KEY,
         sale_id INTEGER REFERENCES "${tenantSchema}".sales(id) ON DELETE CASCADE,
@@ -239,39 +264,72 @@ class Tenant {
         product_name VARCHAR(255),
         quantity DECIMAL(10,3) DEFAULT 1,
         unit_price DECIMAL(10,2) DEFAULT 0,
-        discount DECIMAL(10,2) DEFAULT 0,
-        total DECIMAL(10,2) DEFAULT 0
-      );
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        vat_amount DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
+        discount DECIMAL(10,2) DEFAULT 0
+      )
+    `);
 
+    // purchases
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".purchases (
         id SERIAL PRIMARY KEY,
         supplier_id INTEGER REFERENCES "${tenantSchema}".suppliers(id),
-        reference_number VARCHAR(100),
-        total DECIMAL(10,2) DEFAULT 0,
-        status VARCHAR(20) DEFAULT 'received',
+        user_id INTEGER,
+        invoice_no VARCHAR(100),
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        vat_amount DECIMAL(10,2) DEFAULT 0,
+        total_cost DECIMAL(10,2) DEFAULT 0,
+        amount_paid DECIMAL(10,2) DEFAULT 0,
+        balance DECIMAL(10,2) DEFAULT 0,
+        payment_method VARCHAR(50) DEFAULT 'cash',
         notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        status VARCHAR(20) DEFAULT 'completed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
+    // purchase_items
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".purchase_items (
         id SERIAL PRIMARY KEY,
         purchase_id INTEGER REFERENCES "${tenantSchema}".purchases(id) ON DELETE CASCADE,
         product_id INTEGER REFERENCES "${tenantSchema}".products(id),
-        product_name VARCHAR(255),
         quantity DECIMAL(10,3) DEFAULT 1,
         unit_cost DECIMAL(10,2) DEFAULT 0,
-        total DECIMAL(10,2) DEFAULT 0
-      );
+        total_cost DECIMAL(10,2) DEFAULT 0
+      )
+    `);
 
+    // expenses
+    await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".expenses (
         id SERIAL PRIMARY KEY,
         category VARCHAR(100),
         description TEXT,
         amount DECIMAL(10,2) DEFAULT 0,
+        payment_method VARCHAR(50) DEFAULT 'cash',
+        reference VARCHAR(100),
+        user_id INTEGER,
         expense_date DATE DEFAULT CURRENT_DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        status VARCHAR(20) DEFAULT 'approved',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
+
+    // users VIEW — lets models JOIN users on cashier_id/user_id
+    // Maps to public.tenant_users filtered by this tenant
+    if (tenantId) {
+      await queryMain(`
+        CREATE OR REPLACE VIEW "${tenantSchema}".users AS
+          SELECT id, username, full_name, email, role, status, last_login, created_at, updated_at
+          FROM public.tenant_users
+          WHERE tenant_id = '${tenantId}'::uuid
+      `);
+    }
   }
 
   /**
