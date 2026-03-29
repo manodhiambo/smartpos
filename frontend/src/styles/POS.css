@@ -13,6 +13,11 @@
   margin-bottom: 24px;
 }
 
+.pos-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .pos-title {
   font-size: 28px;
   font-weight: 800;

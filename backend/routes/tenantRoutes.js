@@ -15,6 +15,12 @@ router.put('/info',
   tenantController.updateTenantInfo
 );
 
+// Update receipt settings (admin only)
+router.put('/receipt-settings',
+  authorize('admin'),
+  tenantController.updateReceiptSettings
+);
+
 // Update M-Pesa payment settings (admin only)
 router.put('/mpesa-settings',
   authorize('admin'),

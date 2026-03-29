@@ -425,6 +425,73 @@
   animation: spin 1s linear infinite;
 }
 
+/* ── Receipt Settings ── */
+.receipt-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .receipt-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.receipt-preview-panel {
+  background: #f8f8f8;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.receipt-preview-panel h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  align-self: flex-start;
+}
+
+.receipt-paper {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 16px 12px;
+  width: 240px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #111;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.receipt-paper .rp-center { text-align: center; }
+.receipt-paper .rp-biz-name { font-size: 14px; font-weight: bold; text-align: center; margin: 2px 0; }
+.receipt-paper .rp-tagline { font-style: italic; text-align: center; font-size: 10px; }
+.receipt-paper .rp-meta { text-align: center; font-size: 10px; color: #555; }
+.receipt-paper .rp-divider { text-align: center; color: #aaa; letter-spacing: 2px; font-size: 10px; margin: 4px 0; }
+.receipt-paper .rp-footer { text-align: center; font-style: italic; font-size: 10px; margin-top: 6px; white-space: pre-line; }
+.receipt-paper .rp-powered { text-align: center; font-size: 9px; color: #bbb; margin-top: 4px; }
+.receipt-paper .rp-row { display: flex; justify-content: space-between; padding: 1px 0; }
+.receipt-paper .rp-row.bold { font-weight: bold; border-top: 1px solid #ccc; padding-top: 3px; margin-top: 2px; }
+.receipt-paper .rp-header-text { text-align: center; font-size: 10px; white-space: pre-line; margin-bottom: 4px; }
+
+.receipt-copies-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.receipt-copies-row input[type="number"] {
+  width: 80px;
+}
+
 @media (max-width: 768px) {
   .settings-tabs {
     flex-direction: column;

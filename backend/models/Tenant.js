@@ -110,6 +110,34 @@ class Tenant {
   }
 
   /**
+   * Update receipt customization settings
+   */
+  static async updateReceiptSettings(tenantId, data) {
+    const result = await queryMain(
+      `UPDATE public.tenants
+       SET receipt_header   = $1,
+           receipt_footer   = $2,
+           receipt_tagline  = $3,
+           receipt_kra_pin  = $4,
+           receipt_show_vat = $5,
+           receipt_copies   = $6,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7
+       RETURNING *`,
+      [
+        data.header ?? null,
+        data.footer ?? 'Thank you for shopping with us!',
+        data.tagline ?? null,
+        data.kraPin ?? null,
+        data.showVat !== false,
+        data.copies ?? 1,
+        tenantId
+      ]
+    );
+    return result.rows[0];
+  }
+
+  /**
    * Update Daraja API credentials for per-tenant M-Pesa STK Push.
    * Pass null for secret/passkey to leave the existing value unchanged.
    */

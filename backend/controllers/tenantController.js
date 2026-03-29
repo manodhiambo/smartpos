@@ -38,7 +38,14 @@ exports.getTenantInfo = async (req, res, next) => {
         darajaConsumerKey: t.mpesa_consumer_key || '',
         darajaConsumerSecretSet: !!(t.mpesa_consumer_secret),
         darajaPasskeySet: !!(t.mpesa_passkey),
-        darajaEnvironment: t.mpesa_environment || 'sandbox'
+        darajaEnvironment: t.mpesa_environment || 'sandbox',
+        // Receipt settings
+        receiptHeader: t.receipt_header || '',
+        receiptFooter: t.receipt_footer || 'Thank you for shopping with us!',
+        receiptTagline: t.receipt_tagline || '',
+        receiptKraPin: t.receipt_kra_pin || '',
+        receiptShowVat: t.receipt_show_vat !== false,
+        receiptCopies: t.receipt_copies || 1
       }
     });
   } catch (error) {
@@ -125,6 +132,42 @@ exports.updateMpesaSettings = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Update M-Pesa settings error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Update receipt settings
+ */
+exports.updateReceiptSettings = async (req, res, next) => {
+  try {
+    const { tenantId, role } = req.user;
+    if (role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { header, footer, tagline, kraPin, showVat, copies } = req.body;
+
+    const t = await Tenant.updateReceiptSettings(tenantId, {
+      header, footer, tagline, kraPin,
+      showVat: showVat !== false,
+      copies: parseInt(copies) || 1
+    });
+
+    res.json({
+      success: true,
+      message: 'Receipt settings saved',
+      data: {
+        receiptHeader: t.receipt_header || '',
+        receiptFooter: t.receipt_footer || '',
+        receiptTagline: t.receipt_tagline || '',
+        receiptKraPin: t.receipt_kra_pin || '',
+        receiptShowVat: t.receipt_show_vat !== false,
+        receiptCopies: t.receipt_copies || 1
+      }
+    });
+  } catch (error) {
+    console.error('Update receipt settings error:', error);
     next(error);
   }
 };

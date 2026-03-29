@@ -135,6 +135,7 @@ export const tenantAPI = {
   getInfo: () => api.get('/tenant/info'),
   updateInfo: (data) => api.put('/tenant/info', data),
   updateMpesaSettings: (data) => api.put('/tenant/mpesa-settings', data),
+  updateReceiptSettings: (data) => api.put('/tenant/receipt-settings', data),
   updateDarajaSettings: (data) => api.put('/tenant/daraja-settings', data),
   testDarajaConnection: () => api.post('/tenant/daraja-test'),
 };

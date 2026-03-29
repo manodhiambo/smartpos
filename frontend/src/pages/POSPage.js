@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { productsAPI, salesAPI, customersAPI } from '../services/api';
+import { productsAPI, salesAPI, customersAPI, tenantAPI } from '../services/api';
 import {
   FaBarcode, FaSearch, FaShoppingCart, FaTrash, FaPlus, FaMinus,
   FaUser, FaCashRegister, FaMobileAlt, FaCreditCard, FaMoneyBill,
-  FaExchangeAlt, FaSpinner, FaCheckCircle, FaTimesCircle, FaRedo
+  FaExchangeAlt, FaSpinner, FaCheckCircle, FaTimesCircle, FaRedo, FaPrint
 } from 'react-icons/fa';
 import { formatCurrency, calculateVAT } from '../utils/helpers';
 import { useAuth } from '../context/AuthContext';
+import { printReceipt } from '../utils/printReceipt';
 import toast from 'react-hot-toast';
 import '../styles/POS.css';
 
@@ -44,10 +45,14 @@ const POSPage = () => {
   const stkPollRef = useRef(null);
   const stkCountdownRef = useRef(null);
 
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [lastSale, setLastSale] = useState(null);
+
   const barcodeInputRef = useRef(null);
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
+    tenantAPI.getInfo().then(r => setTenantInfo(r.data.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -328,7 +333,10 @@ const POSPage = () => {
       };
 
       const response = await salesAPI.create(saleData);
-      toast.success(`Sale complete! Receipt: ${response.data.data.receipt_no}`);
+      const completedSale = response.data.data;
+      toast.success(`Sale complete! Receipt: ${completedSale.receipt_no}`);
+      setLastSale(completedSale);
+      printReceipt(completedSale, tenantInfo || {});
       clearCart();
       barcodeInputRef.current?.focus();
     } catch (error) {
@@ -420,9 +428,16 @@ const POSPage = () => {
     <div className="pos-page">
       <div className="pos-header">
         <h1 className="pos-title">Point of Sale</h1>
-        <button className="btn btn-outline" onClick={clearCart}>
-          <FaTrash /> Clear Cart
-        </button>
+        <div className="pos-header-actions">
+          {lastSale && (
+            <button className="btn btn-outline" onClick={() => printReceipt(lastSale, tenantInfo || {})}>
+              <FaPrint /> Reprint
+            </button>
+          )}
+          <button className="btn btn-outline" onClick={clearCart}>
+            <FaTrash /> Clear Cart
+          </button>
+        </div>
       </div>
 
       <div className="pos-container">

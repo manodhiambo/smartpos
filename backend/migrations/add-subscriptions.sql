@@ -1,5 +1,13 @@
 -- Add subscription columns to tenants table
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
+-- Receipt customization
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_header TEXT;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_footer TEXT DEFAULT 'Thank you for shopping with us!';
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_tagline VARCHAR(255);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_kra_pin VARCHAR(50);
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_show_vat BOOLEAN DEFAULT true;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS receipt_copies SMALLINT DEFAULT 1;
+
 -- Daraja API credentials for per-tenant M-Pesa STK Push
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_consumer_key VARCHAR(255);
 ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS mpesa_consumer_secret VARCHAR(255);

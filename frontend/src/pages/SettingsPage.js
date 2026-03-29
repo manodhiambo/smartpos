@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   FaSave, FaStore, FaMobileAlt, FaUser, FaKey, FaShieldAlt,
   FaCheckCircle, FaTimesCircle, FaSpinner, FaExternalLinkAlt,
-  FaEye, FaEyeSlash, FaInfoCircle, FaWifi
+  FaEye, FaEyeSlash, FaInfoCircle, FaWifi, FaPrint
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import '../styles/Settings.css';
@@ -40,6 +40,16 @@ const SettingsPage = () => {
   const [testResult, setTestResult] = useState(null); // null | { success, message }
   const [testLoading, setTestLoading] = useState(false);
 
+  // Receipt
+  const [receiptData, setReceiptData] = useState({
+    header: '',
+    footer: 'Thank you for shopping with us!',
+    tagline: '',
+    kraPin: '',
+    showVat: true,
+    copies: 1
+  });
+
   // Profile
   const [profileData, setProfileData] = useState({
     fullName: '', email: '',
@@ -74,6 +84,14 @@ const SettingsPage = () => {
       });
       setDarajaSecretSet(!!t.darajaConsumerSecretSet);
       setDarajaPasskeySet(!!t.darajaPasskeySet);
+      setReceiptData({
+        header: t.receiptHeader || '',
+        footer: t.receiptFooter || 'Thank you for shopping with us!',
+        tagline: t.receiptTagline || '',
+        kraPin: t.receiptKraPin || '',
+        showVat: t.receiptShowVat !== false,
+        copies: t.receiptCopies || 1
+      });
     } catch (error) {
       console.error('Failed to load tenant info');
     }
@@ -102,6 +120,17 @@ const SettingsPage = () => {
       toast.success('M-Pesa payment details saved');
     } catch {
       toast.error('Failed to save M-Pesa settings');
+    } finally { setLoading(false); }
+  };
+
+  const handleReceiptSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await tenantAPI.updateReceiptSettings(receiptData);
+      toast.success('Receipt settings saved');
+    } catch {
+      toast.error('Failed to save receipt settings');
     } finally { setLoading(false); }
   };
 
@@ -195,6 +224,9 @@ const SettingsPage = () => {
               {darajaSandbox ? 'Sandbox' : 'Live'}
             </span>
           )}
+        </button>
+        <button className={`tab-btn ${activeTab === 'receipt' ? 'active' : ''}`} onClick={() => setActiveTab('receipt')}>
+          <FaPrint /> Receipt
         </button>
         <button className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
           <FaUser /> My Profile
@@ -491,6 +523,136 @@ const SettingsPage = () => {
                 <span>Your credentials are stored securely and never exposed in API responses. Only the Consumer Key is visible after saving.</span>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* ── Receipt ── */}
+        {activeTab === 'receipt' && (
+          <div className="settings-section">
+            <div className="section-header">
+              <h2>Receipt Customization</h2>
+              <p>Customize the receipt printed after every sale</p>
+            </div>
+            <div className="receipt-settings-grid">
+              {/* Form */}
+              <form onSubmit={handleReceiptSubmit}>
+                <div className="input-group">
+                  <label>Header Text</label>
+                  <textarea
+                    value={receiptData.header}
+                    onChange={(e) => setReceiptData(p => ({ ...p, header: e.target.value }))}
+                    rows="3"
+                    placeholder="e.g. Welcome to Our Store&#10;Open 7 days · 8am-9pm"
+                  />
+                  <small>Appears at the very top of the receipt, above the business name</small>
+                </div>
+
+                <div className="input-group">
+                  <label>Tagline</label>
+                  <input
+                    type="text"
+                    value={receiptData.tagline}
+                    onChange={(e) => setReceiptData(p => ({ ...p, tagline: e.target.value }))}
+                    placeholder="e.g. Quality You Can Trust"
+                    maxLength={100}
+                  />
+                  <small>Short tagline shown below the business name</small>
+                </div>
+
+                <div className="input-group">
+                  <label>KRA PIN</label>
+                  <input
+                    type="text"
+                    value={receiptData.kraPin}
+                    onChange={(e) => setReceiptData(p => ({ ...p, kraPin: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. P051234567A"
+                    maxLength={20}
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                  <small>Shown on receipt for tax compliance</small>
+                </div>
+
+                <div className="input-group">
+                  <label>Footer Message</label>
+                  <textarea
+                    value={receiptData.footer}
+                    onChange={(e) => setReceiptData(p => ({ ...p, footer: e.target.value }))}
+                    rows="2"
+                    placeholder="Thank you for shopping with us!"
+                  />
+                  <small>Message at the bottom of each receipt</small>
+                </div>
+
+                <div className="form-grid" style={{ marginTop: 0 }}>
+                  <div className="input-group">
+                    <label>Show VAT on Receipt</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={receiptData.showVat}
+                        onChange={(e) => setReceiptData(p => ({ ...p, showVat: e.target.checked }))}
+                        style={{ width: 16, height: 16 }}
+                      />
+                      <span>Display VAT amount line</span>
+                    </label>
+                  </div>
+
+                  <div className="input-group">
+                    <label>Receipt Copies</label>
+                    <div className="receipt-copies-row">
+                      <input
+                        type="number"
+                        value={receiptData.copies}
+                        onChange={(e) => setReceiptData(p => ({ ...p, copies: Math.max(1, parseInt(e.target.value) || 1) }))}
+                        min="1"
+                        max="3"
+                      />
+                      <small>Copies printed per sale (max 3)</small>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: 8 }}>
+                  <FaSave /> {loading ? 'Saving...' : 'Save Receipt Settings'}
+                </button>
+              </form>
+
+              {/* Live Preview */}
+              <div className="receipt-preview-panel">
+                <h3><FaPrint style={{ marginRight: 6 }} />Live Preview</h3>
+                <div className="receipt-paper">
+                  {receiptData.header && (
+                    <div className="rp-header-text">{receiptData.header}</div>
+                  )}
+                  <div className="rp-biz-name">{businessData.businessName || 'Your Business Name'}</div>
+                  {receiptData.tagline && <div className="rp-tagline">{receiptData.tagline}</div>}
+                  {businessData.businessAddress && <div className="rp-meta">{businessData.businessAddress}</div>}
+                  {businessData.businessPhone && <div className="rp-meta">Tel: {businessData.businessPhone}</div>}
+                  {receiptData.kraPin && <div className="rp-meta">KRA PIN: {receiptData.kraPin}</div>}
+                  <div className="rp-divider">================================</div>
+                  <div className="rp-meta">Receipt: <strong>RCT-0001</strong></div>
+                  <div className="rp-meta">Date: {new Date().toLocaleDateString('en-KE', { day:'2-digit',month:'short',year:'numeric'})}</div>
+                  <div className="rp-divider">================================</div>
+                  <div className="rp-row"><span>Item Name × 2</span><span>KSh 200.00</span></div>
+                  <div className="rp-row"><span>Another Item × 1</span><span>KSh 150.00</span></div>
+                  <div className="rp-divider">================================</div>
+                  <div className="rp-row"><span>Subtotal</span><span>KSh 350.00</span></div>
+                  {receiptData.showVat && <div className="rp-row"><span>VAT (16%)</span><span>KSh 48.28</span></div>}
+                  <div className="rp-row bold"><span>TOTAL</span><span>KSh 350.00</span></div>
+                  <div className="rp-divider">================================</div>
+                  <div className="rp-row"><span>Cash</span><span>KSh 400.00</span></div>
+                  <div className="rp-row"><span>Change</span><span>KSh 50.00</span></div>
+                  <div className="rp-divider">================================</div>
+                  {receiptData.footer && <div className="rp-footer">{receiptData.footer}</div>}
+                  <div className="rp-powered">Powered by SmartPOS</div>
+                </div>
+                {receiptData.copies > 1 && (
+                  <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {receiptData.copies} copies will be printed
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
