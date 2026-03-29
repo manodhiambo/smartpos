@@ -154,7 +154,7 @@ const validateSale = validate([
     .isFloat({ min: 0 }).withMessage('Price must be positive'),
 
   body('paymentMethod')
-    .isIn(['cash', 'mpesa', 'card', 'bank_transfer', 'credit']).withMessage('Invalid payment method'),
+    .isIn(['cash', 'mpesa', 'card', 'bank_transfer', 'credit', 'split']).withMessage('Invalid payment method'),
 
   body('totalAmount')
     .optional()

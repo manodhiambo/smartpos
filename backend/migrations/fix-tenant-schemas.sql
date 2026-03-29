@@ -65,6 +65,17 @@ BEGIN
     EXECUTE format('ALTER TABLE %I.sale_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(10,2) DEFAULT 0', t.tenant_schema);
     EXECUTE format('ALTER TABLE %I.sale_items ADD COLUMN IF NOT EXISTS vat_amount DECIMAL(10,2) DEFAULT 0', t.tenant_schema);
 
+    -- ── sale_payments (split payment support) ────────────────────────────────
+    EXECUTE format('
+      CREATE TABLE IF NOT EXISTS %I.sale_payments (
+        id SERIAL PRIMARY KEY,
+        sale_id INTEGER REFERENCES %I.sales(id) ON DELETE CASCADE,
+        method VARCHAR(50) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        reference VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )', t.tenant_schema, t.tenant_schema);
+
     -- ── purchases ─────────────────────────────────────────────────────────────
     EXECUTE format('ALTER TABLE %I.purchases ADD COLUMN IF NOT EXISTS user_id INTEGER', t.tenant_schema);
     EXECUTE format('ALTER TABLE %I.purchases ADD COLUMN IF NOT EXISTS invoice_no VARCHAR(100)', t.tenant_schema);

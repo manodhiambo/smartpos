@@ -1,6 +1,8 @@
 const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
+const Tenant = require('../models/Tenant');
+const mpesaService = require('../services/mpesaService');
 
 /**
  * Create new sale
@@ -8,7 +10,7 @@ const Customer = require('../models/Customer');
 exports.createSale = async (req, res, next) => {
   try {
     const { tenantSchema, id: cashierId } = req.user;
-    const { items, customerId, discount, paymentMethod, amountPaid, mpesaCode, notes } = req.body;
+    const { items, customerId, discount, paymentMethod, amountPaid, mpesaCode, notes, splitPayments } = req.body;
 
     // Validate stock availability for all items
     for (const item of items) {
@@ -74,7 +76,8 @@ exports.createSale = async (req, res, next) => {
       amountPaid: amountPaid || totalAmount,
       changeAmount: changeAmount > 0 ? changeAmount : 0,
       mpesaCode,
-      notes
+      notes,
+      splitPayments: splitPayments || null
     };
 
     const sale = await Sale.create(tenantSchema, saleData);
@@ -347,6 +350,52 @@ exports.voidSale = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Void sale error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Initiate M-Pesa STK Push for a POS sale
+ */
+exports.initiateMpesaPrompt = async (req, res, next) => {
+  try {
+    const { tenantSchema } = req.user;
+    const { phone, amount, reference } = req.body;
+
+    if (!phone || !amount) {
+      return res.status(400).json({ success: false, message: 'Phone and amount are required' });
+    }
+
+    const tenant = await Tenant.findBySchema(tenantSchema);
+    const result = await mpesaService.stkPushForTenant(
+      tenant, phone, amount, reference || `SALE-${Date.now()}`
+    );
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.error });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('M-Pesa prompt error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Poll M-Pesa STK Push status
+ */
+exports.checkMpesaStatus = async (req, res, next) => {
+  try {
+    const { tenantSchema } = req.user;
+    const { checkoutRequestId } = req.params;
+
+    const tenant = await Tenant.findBySchema(tenantSchema);
+    const result = await mpesaService.queryStkPushForTenant(tenant, checkoutRequestId);
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('M-Pesa status error:', error);
     next(error);
   }
 };

@@ -55,6 +55,7 @@ export const authAPI = {
 export const productsAPI = {
   getAll: (params) => api.get('/products', { params }),
   getById: (id) => api.get(`/products/${id}`),
+  getByBarcode: (barcode) => api.get(`/products/barcode/${encodeURIComponent(barcode)}`),
   search: (query) => api.get(`/products/search?q=${query}`),
   getCategories: () => api.get('/products/categories'),
   create: (data) => api.post('/products', data),
@@ -73,6 +74,9 @@ export const salesAPI = {
   getTopProducts: (params) => api.get('/sales/top-products', { params }),
   getByPaymentMethod: (params) => api.get('/sales/by-payment-method', { params }),
   getCashierPerformance: (params) => api.get('/sales/cashier-performance', { params }),
+  getTodaySummary: () => api.get('/sales/summary/today'),
+  initiateMpesaPrompt: (data) => api.post('/sales/mpesa-prompt', data),
+  checkMpesaStatus: (checkoutRequestId) => api.get(`/sales/mpesa-status/${checkoutRequestId}`),
 };
 
 // Purchases API

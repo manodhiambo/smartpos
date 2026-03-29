@@ -15,21 +15,17 @@ class MpesaService {
   }
 
   /**
-   * Get OAuth access token
+   * Get OAuth access token (uses system credentials by default)
    */
-  async getAccessToken() {
+  async getAccessToken(consumerKey, consumerSecret) {
+    const key = consumerKey || this.consumerKey;
+    const secret = consumerSecret || this.consumerSecret;
     try {
-      const auth = Buffer.from(`${this.consumerKey}:${this.consumerSecret}`).toString('base64');
-      
+      const auth = Buffer.from(`${key}:${secret}`).toString('base64');
       const response = await axios.get(
         `${this.baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
-        {
-          headers: {
-            Authorization: `Basic ${auth}`
-          }
-        }
+        { headers: { Authorization: `Basic ${auth}` } }
       );
-
       return response.data.access_token;
     } catch (error) {
       console.error('M-Pesa auth error:', error.response?.data || error.message);
@@ -40,9 +36,11 @@ class MpesaService {
   /**
    * Generate password for STK Push
    */
-  generatePassword() {
+  generatePassword(shortCode, passkey) {
+    const sc = shortCode || this.shortCode;
+    const pk = passkey || this.passkey;
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
-    const password = Buffer.from(`${this.shortCode}${this.passkey}${timestamp}`).toString('base64');
+    const password = Buffer.from(`${sc}${pk}${timestamp}`).toString('base64');
     return { password, timestamp };
   }
 
@@ -64,22 +62,49 @@ class MpesaService {
   }
 
   /**
-   * Initiate STK Push
+   * Initiate STK Push (system credentials)
    */
   async stkPush(phone, amount, accountReference, description) {
+    return this._stkPush(
+      this.consumerKey, this.consumerSecret,
+      this.shortCode, this.passkey,
+      phone, amount, accountReference, description
+    );
+  }
+
+  /**
+   * Initiate STK Push using tenant credentials (falls back to system if not configured)
+   */
+  async stkPushForTenant(tenant, phone, amount, reference) {
+    const consumerKey = tenant.mpesa_consumer_key || this.consumerKey;
+    const consumerSecret = tenant.mpesa_consumer_secret || this.consumerSecret;
+    const shortCode = tenant.mpesa_paybill || tenant.mpesa_till_number || this.shortCode;
+    const passkey = tenant.mpesa_passkey || this.passkey;
+
+    if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
+      return { success: false, error: 'M-Pesa STK Push is not configured for this business. Please set up M-Pesa API credentials in settings.' };
+    }
+
+    return this._stkPush(
+      consumerKey, consumerSecret, shortCode, passkey,
+      phone, amount, reference, `Payment ${reference}`
+    );
+  }
+
+  async _stkPush(consumerKey, consumerSecret, shortCode, passkey, phone, amount, accountReference, description) {
     try {
-      const accessToken = await this.getAccessToken();
-      const { password, timestamp } = this.generatePassword();
+      const accessToken = await this.getAccessToken(consumerKey, consumerSecret);
+      const { password, timestamp } = this.generatePassword(shortCode, passkey);
       const formattedPhone = this.formatPhoneNumber(phone);
 
       const payload = {
-        BusinessShortCode: this.shortCode,
+        BusinessShortCode: shortCode,
         Password: password,
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
         Amount: Math.round(amount),
         PartyA: formattedPhone,
-        PartyB: this.shortCode,
+        PartyB: shortCode,
         PhoneNumber: formattedPhone,
         CallBackURL: this.callbackUrl,
         AccountReference: accountReference,
@@ -115,15 +140,34 @@ class MpesaService {
   }
 
   /**
-   * Query STK Push status
+   * Query STK Push status (system credentials)
    */
   async queryStkPush(checkoutRequestId) {
+    return this._queryStkPush(
+      this.consumerKey, this.consumerSecret,
+      this.shortCode, this.passkey,
+      checkoutRequestId
+    );
+  }
+
+  /**
+   * Query STK Push status using tenant credentials
+   */
+  async queryStkPushForTenant(tenant, checkoutRequestId) {
+    const consumerKey = tenant.mpesa_consumer_key || this.consumerKey;
+    const consumerSecret = tenant.mpesa_consumer_secret || this.consumerSecret;
+    const shortCode = tenant.mpesa_paybill || tenant.mpesa_till_number || this.shortCode;
+    const passkey = tenant.mpesa_passkey || this.passkey;
+    return this._queryStkPush(consumerKey, consumerSecret, shortCode, passkey, checkoutRequestId);
+  }
+
+  async _queryStkPush(consumerKey, consumerSecret, shortCode, passkey, checkoutRequestId) {
     try {
-      const accessToken = await this.getAccessToken();
-      const { password, timestamp } = this.generatePassword();
+      const accessToken = await this.getAccessToken(consumerKey, consumerSecret);
+      const { password, timestamp } = this.generatePassword(shortCode, passkey);
 
       const payload = {
-        BusinessShortCode: this.shortCode,
+        BusinessShortCode: shortCode,
         Password: password,
         Timestamp: timestamp,
         CheckoutRequestID: checkoutRequestId
@@ -140,15 +184,18 @@ class MpesaService {
         }
       );
 
+      const resultCode = String(response.data.ResultCode);
       return {
-        success: response.data.ResultCode === '0',
-        resultCode: response.data.ResultCode,
+        success: resultCode === '0',
+        resultCode,
         resultDesc: response.data.ResultDesc,
+        mpesaReceiptNumber: response.data.MpesaReceiptNumber || null,
         data: response.data
       };
     } catch (error) {
       console.error('STK Query error:', error.response?.data || error.message);
-      throw new Error('Failed to query payment status');
+      // Return pending status instead of throwing — frontend will keep polling
+      return { success: false, resultCode: 'pending', resultDesc: 'Pending' };
     }
   }
 

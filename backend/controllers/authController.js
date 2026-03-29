@@ -41,13 +41,8 @@ const register = async (req, res) => {
       });
     }
 
-    // Generate unique tenant schema name
-    const tenantSchema = `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-
-    // Create tenant
+    // Create tenant (schema name is generated internally by Tenant.create)
     const tenant = await Tenant.create({
-      tenantName: businessName,
-      tenantSchema,
       businessName,
       businessEmail,
       businessPhone,
@@ -57,8 +52,8 @@ const register = async (req, res) => {
       mpesaAccountNumber
     });
 
-    // Create tenant schema and tables
-    await Tenant.createTenantSchema(tenantSchema, tenant.id);
+    // Create tenant schema and tables using the schema stored in the DB record
+    await Tenant.createTenantSchema(tenant.tenant_schema, tenant.id);
 
     // Hash password
     const passwordHash = await bcrypt.hash(adminPassword, 10);

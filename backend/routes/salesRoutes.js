@@ -44,6 +44,10 @@ router.get('/by-payment-method', salesController.getSalesByPaymentMethod);
 // Get sale by receipt number
 router.get('/receipt/:receiptNo', salesController.getSaleByReceipt);
 
+// M-Pesa STK Push for POS
+router.post('/mpesa-prompt', salesController.initiateMpesaPrompt);
+router.get('/mpesa-status/:checkoutRequestId', salesController.checkMpesaStatus);
+
 // ========================================
 // PARAMETERIZED ROUTES LAST
 // ========================================

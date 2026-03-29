@@ -19,10 +19,15 @@ class Sale {
         amountPaid,
         changeAmount,
         mpesaCode,
-        notes
+        notes,
+        splitPayments
       } = saleData;
 
       const receiptNo = generateReceiptNumber();
+
+      // Use 'split' if multiple payment methods provided
+      const actualPaymentMethod =
+        splitPayments && splitPayments.length > 1 ? 'split' : (paymentMethod || 'cash');
 
       // Insert sale record
       const saleResult = await client.query(
@@ -34,16 +39,26 @@ class Sale {
         RETURNING *`,
         [
           receiptNo, cashierId, customerId || null, subtotal, vatAmount,
-          discount || 0, totalAmount, paymentMethod, amountPaid,
+          discount || 0, totalAmount, actualPaymentMethod, amountPaid,
           changeAmount || 0, mpesaCode || null, notes || null, 'completed'
         ]
       );
 
       const sale = saleResult.rows[0];
 
+      // Insert split payment records
+      if (splitPayments && splitPayments.length > 0) {
+        for (const payment of splitPayments) {
+          await client.query(
+            `INSERT INTO sale_payments (sale_id, method, amount, reference)
+             VALUES ($1, $2, $3, $4)`,
+            [sale.id, payment.method, payment.amount, payment.reference || null]
+          );
+        }
+      }
+
       // Insert sale items and update stock
       for (const item of items) {
-        // Insert sale item
         await client.query(
           `INSERT INTO sale_items (
             sale_id, product_id, product_name, quantity, unit_price,
@@ -62,9 +77,8 @@ class Sale {
           ]
         );
 
-        // Update product stock
         await client.query(
-          `UPDATE products 
+          `UPDATE products
            SET stock_quantity = stock_quantity - $1,
                updated_at = CURRENT_TIMESTAMP
            WHERE id = $2`,
@@ -72,8 +86,34 @@ class Sale {
         );
       }
 
-      // Get complete sale with items
-      return await this.findById(tenantSchema, sale.id);
+      // Fetch the complete sale using the SAME transaction client so we can
+      // see our own uncommitted inserts (different pool connection cannot).
+      const fullSaleResult = await client.query(
+        `SELECT s.*, u.full_name as cashier_name, c.name as customer_name
+         FROM sales s
+         LEFT JOIN users u ON s.cashier_id = u.id
+         LEFT JOIN customers c ON s.customer_id = c.id
+         WHERE s.id = $1`,
+        [sale.id]
+      );
+      const fullSale = fullSaleResult.rows[0];
+
+      const itemsResult = await client.query(
+        `SELECT si.*, p.barcode
+         FROM sale_items si
+         LEFT JOIN products p ON si.product_id = p.id
+         WHERE si.sale_id = $1`,
+        [sale.id]
+      );
+      fullSale.items = itemsResult.rows;
+
+      const paymentsResult = await client.query(
+        `SELECT * FROM sale_payments WHERE sale_id = $1 ORDER BY id`,
+        [sale.id]
+      );
+      fullSale.payments = paymentsResult.rows;
+
+      return fullSale;
     });
   }
 
@@ -106,6 +146,13 @@ class Sale {
     );
 
     sale.items = itemsResult.rows;
+
+    const paymentsResult = await queryTenant(
+      tenantSchema,
+      `SELECT * FROM sale_payments WHERE sale_id = $1 ORDER BY id`,
+      [saleId]
+    );
+    sale.payments = paymentsResult.rows;
 
     return sale;
   }

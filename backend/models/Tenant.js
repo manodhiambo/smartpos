@@ -271,6 +271,18 @@ class Tenant {
       )
     `);
 
+    // sale_payments (for split payments)
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".sale_payments (
+        id SERIAL PRIMARY KEY,
+        sale_id INTEGER REFERENCES "${tenantSchema}".sales(id) ON DELETE CASCADE,
+        method VARCHAR(50) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        reference VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // purchases
     await queryMain(`
       CREATE TABLE IF NOT EXISTS "${tenantSchema}".purchases (
