@@ -6,7 +6,7 @@ class SubscriptionService {
    */
   async getPlans() {
     const result = await queryMain(
-      'SELECT * FROM public.subscription_plans WHERE is_active = true ORDER BY price_monthly ASC'
+      'SELECT * FROM public.subscription_plans WHERE is_active = true ORDER BY COALESCE(price_monthly, 0) ASC'
     );
     return result.rows;
   }

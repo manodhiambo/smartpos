@@ -169,6 +169,111 @@ class Tenant {
   }
 
   /**
+   * Create a PostgreSQL schema for a new tenant and set up their tables
+   */
+  static async createTenantSchema(tenantSchema) {
+    // Create the schema
+    await queryMain(`CREATE SCHEMA IF NOT EXISTS "${tenantSchema}"`);
+
+    // Create per-tenant tables inside the schema
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".products (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        sku VARCHAR(100),
+        barcode VARCHAR(100),
+        category VARCHAR(100),
+        buying_price DECIMAL(10,2) DEFAULT 0,
+        selling_price DECIMAL(10,2) DEFAULT 0,
+        stock_quantity INTEGER DEFAULT 0,
+        min_stock_level INTEGER DEFAULT 0,
+        unit VARCHAR(50) DEFAULT 'piece',
+        description TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".customers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(20),
+        email VARCHAR(255),
+        address TEXT,
+        loyalty_points INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".suppliers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(20),
+        email VARCHAR(255),
+        address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".sales (
+        id SERIAL PRIMARY KEY,
+        receipt_number VARCHAR(50) UNIQUE,
+        customer_id INTEGER REFERENCES "${tenantSchema}".customers(id),
+        cashier_id INTEGER,
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        discount DECIMAL(10,2) DEFAULT 0,
+        tax DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
+        payment_method VARCHAR(50) DEFAULT 'cash',
+        payment_reference VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'completed',
+        void_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".sale_items (
+        id SERIAL PRIMARY KEY,
+        sale_id INTEGER REFERENCES "${tenantSchema}".sales(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES "${tenantSchema}".products(id),
+        product_name VARCHAR(255),
+        quantity DECIMAL(10,3) DEFAULT 1,
+        unit_price DECIMAL(10,2) DEFAULT 0,
+        discount DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".purchases (
+        id SERIAL PRIMARY KEY,
+        supplier_id INTEGER REFERENCES "${tenantSchema}".suppliers(id),
+        reference_number VARCHAR(100),
+        total DECIMAL(10,2) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'received',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".purchase_items (
+        id SERIAL PRIMARY KEY,
+        purchase_id INTEGER REFERENCES "${tenantSchema}".purchases(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES "${tenantSchema}".products(id),
+        product_name VARCHAR(255),
+        quantity DECIMAL(10,3) DEFAULT 1,
+        unit_cost DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".expenses (
+        id SERIAL PRIMARY KEY,
+        category VARCHAR(100),
+        description TEXT,
+        amount DECIMAL(10,2) DEFAULT 0,
+        expense_date DATE DEFAULT CURRENT_DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  /**
    * Get tenant statistics
    */
   static async getStats(tenantId) {

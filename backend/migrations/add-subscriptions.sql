@@ -10,6 +10,7 @@ ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS grace_period_days INTEGER DE
 -- Create subscription_plans table
 CREATE TABLE IF NOT EXISTS public.subscription_plans (
   id SERIAL PRIMARY KEY,
+  name VARCHAR(50),
   plan_name VARCHAR(50),
   display_name VARCHAR(100),
   price_monthly DECIMAL(10,2) DEFAULT 0,
@@ -23,7 +24,8 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add missing columns to subscription_plans if it existed with different schema
+-- Add missing columns to subscription_plans (handles existing tables with different schema)
+ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS name VARCHAR(50);
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50);
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS price_monthly DECIMAL(10,2) DEFAULT 0;
@@ -33,6 +35,22 @@ ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_products INTE
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS max_transactions_per_month INTEGER DEFAULT 10000;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS features JSONB;
 ALTER TABLE public.subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+-- Drop NOT NULL on any legacy columns in subscription_plans that would block inserts
+DO $$
+DECLARE
+  col TEXT;
+BEGIN
+  FOREACH col IN ARRAY ARRAY['name', 'code', 'label', 'title'] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'subscription_plans'
+        AND column_name = col AND is_nullable = 'NO'
+    ) THEN
+      EXECUTE 'ALTER TABLE public.subscription_plans ALTER COLUMN ' || quote_ident(col) || ' DROP NOT NULL';
+    END IF;
+  END LOOP;
+END $$;
 
 -- Ensure unique constraint on plan_name
 DO $$
@@ -45,10 +63,10 @@ BEGIN
   END IF;
 END $$;
 
--- Create payments table
+-- Create payments table with UUID tenant_id
 CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id INTEGER,
+  tenant_id UUID,
   payment_method VARCHAR(50) DEFAULT 'mpesa',
   amount DECIMAL(10,2),
   currency VARCHAR(10) DEFAULT 'KES',
@@ -69,10 +87,23 @@ CREATE TABLE IF NOT EXISTS public.payments (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create subscription_history table
+-- Fix payments.tenant_id if it exists as INTEGER instead of UUID
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'payments'
+      AND column_name = 'tenant_id' AND data_type = 'integer'
+  ) THEN
+    TRUNCATE public.payments;
+    ALTER TABLE public.payments ALTER COLUMN tenant_id TYPE UUID USING NULL;
+  END IF;
+END $$;
+
+-- Create subscription_history table with UUID tenant_id
 CREATE TABLE IF NOT EXISTS public.subscription_history (
   id SERIAL PRIMARY KEY,
-  tenant_id INTEGER,
+  tenant_id UUID,
   plan_name VARCHAR(50),
   action VARCHAR(50),
   previous_plan VARCHAR(50),
@@ -82,21 +113,34 @@ CREATE TABLE IF NOT EXISTS public.subscription_history (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Fix subscription_history.tenant_id if it exists as INTEGER
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'subscription_history'
+      AND column_name = 'tenant_id' AND data_type = 'integer'
+  ) THEN
+    TRUNCATE public.subscription_history;
+    ALTER TABLE public.subscription_history ALTER COLUMN tenant_id TYPE UUID USING NULL;
+  END IF;
+END $$;
+
 -- Seed default subscription plans (safe upsert using WHERE NOT EXISTS)
-INSERT INTO public.subscription_plans (plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
-SELECT 'trial', 'Free Trial', 0, 0, 2, 100, 500, '{"support": "email", "reports": "basic", "multi_location": false}'::jsonb
+INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
+SELECT 'trial', 'trial', 'Free Trial', 0, 0, 2, 100, 500, '{"support": "email", "reports": "basic", "multi_location": false}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'trial');
 
-INSERT INTO public.subscription_plans (plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
-SELECT 'basic', 'Basic Plan', 2000, 20000, 5, 1000, 5000, '{"support": "email", "reports": "standard", "multi_location": false, "pos_terminals": 2}'::jsonb
+INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
+SELECT 'basic', 'basic', 'Basic Plan', 2000, 20000, 5, 1000, 5000, '{"support": "email", "reports": "standard", "multi_location": false, "pos_terminals": 2}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'basic');
 
-INSERT INTO public.subscription_plans (plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
-SELECT 'premium', 'Premium Plan', 5000, 50000, 15, 10000, 50000, '{"support": "email_phone", "reports": "advanced", "multi_location": true, "pos_terminals": 5, "api_access": true}'::jsonb
+INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
+SELECT 'premium', 'premium', 'Premium Plan', 5000, 50000, 15, 10000, 50000, '{"support": "email_phone", "reports": "advanced", "multi_location": true, "pos_terminals": 5, "api_access": true}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'premium');
 
-INSERT INTO public.subscription_plans (plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
-SELECT 'enterprise', 'Enterprise Plan', 15000, 150000, 999, 999999, 999999, '{"support": "24_7", "reports": "custom", "multi_location": true, "pos_terminals": 999, "api_access": true, "custom_features": true}'::jsonb
+INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features)
+SELECT 'enterprise', 'enterprise', 'Enterprise Plan', 15000, 150000, 999, 999999, 999999, '{"support": "24_7", "reports": "custom", "multi_location": true, "pos_terminals": 999, "api_access": true, "custom_features": true}'::jsonb
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'enterprise');
 
 -- Indexes

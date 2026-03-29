@@ -69,27 +69,73 @@ const startServer = async () => {
     // Test database connection
     await testConnection();
 
+    // Run SQL migration file statement by statement so one failure doesn't block the rest
+    const runMigrationFile = async (filePath, label) => {
+      const sql = fs.readFileSync(filePath, 'utf8');
+      // Split on semicolons that end a statement (not inside $$ blocks)
+      // Strategy: run the whole file; if it fails, retry statement by statement
+      try {
+        await queryMain(sql);
+        console.log(`✅ ${label}`);
+      } catch (bulkErr) {
+        console.warn(`⚠️  ${label} (bulk failed: ${bulkErr.message}) — retrying statement by statement`);
+        // Split naively on semicolon+newline, preserving DO $$ blocks
+        const statements = splitSqlStatements(sql);
+        let ok = 0, failed = 0;
+        for (const stmt of statements) {
+          const trimmed = stmt.trim();
+          if (!trimmed) continue;
+          try {
+            await queryMain(trimmed);
+            ok++;
+          } catch (stmtErr) {
+            console.warn(`   ⚠️  Statement warning: ${stmtErr.message.split('\n')[0]}`);
+            failed++;
+          }
+        }
+        console.log(`   ${label} done: ${ok} ok, ${failed} warnings`);
+      }
+    };
+
+    // Split SQL respecting dollar-quoted blocks (DO $$ ... $$)
+    const splitSqlStatements = (sql) => {
+      const statements = [];
+      let current = '';
+      let inDollarQuote = false;
+      let i = 0;
+      while (i < sql.length) {
+        // Detect $$ delimiter
+        if (sql[i] === '$' && sql[i + 1] === '$') {
+          inDollarQuote = !inDollarQuote;
+          current += '$$';
+          i += 2;
+          continue;
+        }
+        if (sql[i] === ';' && !inDollarQuote) {
+          current += ';';
+          statements.push(current);
+          current = '';
+          i++;
+          continue;
+        }
+        current += sql[i];
+        i++;
+      }
+      if (current.trim()) statements.push(current);
+      return statements;
+    };
+
     // Run schema init (creates tables if not exist)
-    try {
-      const initSql = fs.readFileSync(
-        path.join(__dirname, 'migrations/init-schema.sql'), 'utf8'
-      );
-      await queryMain(initSql);
-      console.log('✅ Schema initialized');
-    } catch (initError) {
-      console.warn('⚠️  Schema init warning:', initError.message);
-    }
+    await runMigrationFile(
+      path.join(__dirname, 'migrations/init-schema.sql'),
+      'Schema initialized'
+    );
 
     // Run subscription migrations
-    try {
-      const migrationSql = fs.readFileSync(
-        path.join(__dirname, 'migrations/add-subscriptions.sql'), 'utf8'
-      );
-      await queryMain(migrationSql);
-      console.log('✅ Subscription migrations applied');
-    } catch (migrationError) {
-      console.warn('⚠️  Migration warning:', migrationError.message);
-    }
+    await runMigrationFile(
+      path.join(__dirname, 'migrations/add-subscriptions.sql'),
+      'Subscription migrations applied'
+    );
 
     // Seed demo tenant and admin user if not present
     try {

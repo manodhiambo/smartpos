@@ -300,7 +300,7 @@ exports.getAllPlans = async (req, res) => {
     const plans = await queryMain(`
       SELECT sp.*, 0 as active_subscribers
       FROM public.subscription_plans sp
-      ORDER BY sp.price_monthly ASC
+      ORDER BY COALESCE(sp.price_monthly, 0) ASC
     `);
 
     res.json({
