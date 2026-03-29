@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaShoppingCart, FaStore, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUser, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaShoppingCart, FaStore, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUser, FaLock, FaEye, FaEyeSlash, FaTag } from 'react-icons/fa';
 import '../styles/AuthPages.css';
 
 const RegisterPage = () => {
@@ -64,7 +64,7 @@ const RegisterPage = () => {
 
     // Admin Information
     if (!formData.adminUsername.trim()) {
-      newErrors.adminUsername = 'Admin username is required';
+      newErrors.adminUsername = 'Username is required';
     } else if (formData.adminUsername.length < 3) {
       newErrors.adminUsername = 'Username must be at least 3 characters';
     }
@@ -115,19 +115,19 @@ const RegisterPage = () => {
             <div className="auth-features">
               <div className="auth-feature-item">
                 <div className="feature-check">✓</div>
-                <span>30-day free trial</span>
+                <span>5-day free trial</span>
+              </div>
+              <div className="auth-feature-item">
+                <div className="feature-check">✓</div>
+                <span>KSh 70,000 setup fee</span>
+              </div>
+              <div className="auth-feature-item">
+                <div className="feature-check">✓</div>
+                <span>KSh 20,000/year renewal</span>
               </div>
               <div className="auth-feature-item">
                 <div className="feature-check">✓</div>
                 <span>No credit card required</span>
-              </div>
-              <div className="auth-feature-item">
-                <div className="feature-check">✓</div>
-                <span>Setup in 5 minutes</span>
-              </div>
-              <div className="auth-feature-item">
-                <div className="feature-check">✓</div>
-                <span>24/7 support</span>
               </div>
             </div>
           </div>
@@ -139,10 +139,16 @@ const RegisterPage = () => {
             <p className="auth-form-subtitle">Fill in your details to get started</p>
 
             <form onSubmit={handleSubmit} className="auth-form">
+              {/* Pricing Banner */}
+              <div className="pricing-banner">
+                <FaTag className="pricing-banner-icon" />
+                <span>5-day free trial, then KSh 70,000 setup fee + KSh 20,000/year</span>
+              </div>
+
               {/* Business Information */}
               <div className="form-section">
                 <h3 className="form-section-title">Business Information</h3>
-                
+
                 <div className="input-group">
                   <label htmlFor="businessName">Business Name *</label>
                   <div className="input-with-icon">
@@ -212,9 +218,9 @@ const RegisterPage = () => {
                 </div>
               </div>
 
-              {/* Admin Account */}
+              {/* Login Credentials */}
               <div className="form-section">
-                <h3 className="form-section-title">Admin Account</h3>
+                <h3 className="form-section-title">Login Credentials</h3>
 
                 <div className="input-group">
                   <label htmlFor="adminFullName">Full Name *</label>
@@ -275,6 +281,11 @@ const RegisterPage = () => {
                 </div>
               </div>
 
+              {/* Sign-in info callout */}
+              <div className="signin-info-box">
+                After registration, use your <strong>Business Email</strong> + <strong>Username</strong> + <strong>Password</strong> to sign in.
+              </div>
+
               {/* M-Pesa Settings (Optional) */}
               <div className="form-section">
                 <h3 className="form-section-title">M-Pesa Settings (Optional)</h3>
@@ -320,8 +331,8 @@ const RegisterPage = () => {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn btn-primary btn-block"
                 disabled={loading}
               >

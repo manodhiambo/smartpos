@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { productsAPI, salesAPI, customersAPI } from '../services/api';
 import { FaBarcode, FaSearch, FaShoppingCart, FaTrash, FaPlus, FaMinus, FaUser, FaCashRegister } from 'react-icons/fa';
 import { formatCurrency, calculateVAT } from '../utils/helpers';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import '../styles/POS.css';
 
 const POSPage = () => {
+  const { tenant } = useAuth();
   const [cart, setCart] = useState([]);
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +18,7 @@ const POSPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [mpesaCode, setMpesaCode] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const barcodeInputRef = useRef(null);
 
   useEffect(() => {
@@ -409,14 +412,47 @@ const POSPage = () => {
               )}
 
               {paymentMethod === 'mpesa' && (
-                <div className="input-group">
-                  <label>M-Pesa Code</label>
-                  <input
-                    type="text"
-                    placeholder="Enter M-Pesa code"
-                    value={mpesaCode}
-                    onChange={(e) => setMpesaCode(e.target.value)}
-                  />
+                <div className="mpesa-payment-section">
+                  {(tenant?.mpesaTillNumber || tenant?.mpesaPaybill) && (
+                    <div className="mpesa-prompt-box">
+                      <div className="mpesa-prompt-title">Customer Payment Instructions</div>
+                      <div className="mpesa-prompt-details">
+                        {tenant.mpesaTillNumber && (
+                          <div className="mpesa-detail-row">
+                            <span className="mpesa-label">Till Number:</span>
+                            <span className="mpesa-value">{tenant.mpesaTillNumber}</span>
+                          </div>
+                        )}
+                        {tenant.mpesaPaybill && (
+                          <div className="mpesa-detail-row">
+                            <span className="mpesa-label">Paybill:</span>
+                            <span className="mpesa-value">{tenant.mpesaPaybill}</span>
+                          </div>
+                        )}
+                        {tenant.mpesaPaybill && tenant.mpesaAccountNumber && (
+                          <div className="mpesa-detail-row">
+                            <span className="mpesa-label">Account:</span>
+                            <span className="mpesa-value">{tenant.mpesaAccountNumber}</span>
+                          </div>
+                        )}
+                        <div className="mpesa-amount-row">
+                          <span className="mpesa-label">Amount:</span>
+                          <span className="mpesa-amount-value">{formatCurrency(totals.total)}</span>
+                        </div>
+                      </div>
+                      <p className="mpesa-instruction">Ask customer to send the exact amount via M-Pesa, then enter the confirmation code below.</p>
+                    </div>
+                  )}
+                  <div className="input-group">
+                    <label>M-Pesa Confirmation Code</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. QJH5XXXXX"
+                      value={mpesaCode}
+                      onChange={(e) => setMpesaCode(e.target.value.toUpperCase())}
+                      style={{ textTransform: 'uppercase' }}
+                    />
+                  </div>
                 </div>
               )}
             </div>

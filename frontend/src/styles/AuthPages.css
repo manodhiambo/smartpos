@@ -361,3 +361,36 @@
     padding-left: 40px !important;
   }
 }
+
+/* Pricing banner on registration form */
+.pricing-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e40af;
+  margin-bottom: 20px;
+}
+
+.pricing-banner-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #3b82f6;
+}
+
+/* Sign-in info callout box */
+.signin-info-box {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}

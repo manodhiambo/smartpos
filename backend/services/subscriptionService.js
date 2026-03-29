@@ -69,7 +69,7 @@ class SubscriptionService {
    * Start trial for new tenant
    */
   async startTrial(tenantId) {
-    const trialDays = 30;
+    const trialDays = 5;
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 

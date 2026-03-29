@@ -74,7 +74,7 @@ const register = async (req, res) => {
 
     const adminUser = userResult.rows[0];
 
-    // Start 30-day free trial
+    // Start 5-day free trial
     try {
       await subscriptionService.startTrial(tenant.id);
     } catch (trialErr) {
@@ -98,7 +98,7 @@ const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! Your 30-day free trial has started.',
+      message: 'Registration successful! Your 5-day free trial has started.',
       data: {
         token,
         user: {
@@ -112,9 +112,15 @@ const register = async (req, res) => {
           id: tenant.id,
           businessName: tenant.businessName,
           businessEmail: tenant.businessEmail,
+          mpesaTillNumber: tenant.mpesa_till_number || null,
+          mpesaPaybill: tenant.mpesa_paybill || null,
+          mpesaAccountNumber: tenant.mpesa_account_number || null,
           subscriptionPlan: 'trial',
           subscriptionStatus: 'active',
-          isTrial: true
+          isTrial: true,
+          trialEndsAt: null,
+          subscriptionEndsAt: null,
+          daysRemaining: 5
         }
       }
     });
@@ -271,12 +277,15 @@ const login = async (req, res) => {
           id: tenant.id,
           businessName: tenant.business_name,
           businessEmail: tenant.business_email,
+          mpesaTillNumber: tenant.mpesa_till_number || null,
+          mpesaPaybill: tenant.mpesa_paybill || null,
+          mpesaAccountNumber: tenant.mpesa_account_number || null,
           subscriptionPlan: subscription?.subscription_plan || tenant.subscription_plan || 'trial',
           subscriptionStatus: subscription?.subscription_status || tenant.subscription_status || 'active',
           isTrial: subscription?.is_trial ?? true,
           trialEndsAt: subscription?.trial_ends_at || null,
           subscriptionEndsAt: subscription?.subscription_ends_at || null,
-          daysRemaining: Math.max(0, Math.floor(subscription?.days_remaining || 30))
+          daysRemaining: Math.max(0, Math.floor(subscription?.days_remaining || 5))
         }
       }
     });

@@ -173,7 +173,7 @@ SELECT 'trial', 'trial', 'Free Trial', 0, 0, 2, 100, 500, '{"support": "email", 
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'trial');
 
 INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
-SELECT 'basic', 'basic', 'Basic Plan', 2000, 20000, 5, 1000, 5000, '{"support": "email", "reports": "standard", "multi_location": false, "pos_terminals": 2}'::jsonb, true
+SELECT 'basic', 'basic', 'Basic Plan', 1700, 20000, 5, 1000, 5000, '{"support": "email", "reports": "standard", "multi_location": false, "pos_terminals": 2}'::jsonb, true
 WHERE NOT EXISTS (SELECT 1 FROM public.subscription_plans WHERE plan_name = 'basic');
 
 INSERT INTO public.subscription_plans (name, plan_name, display_name, price_monthly, price_yearly, max_users, max_products, max_transactions_per_month, features, is_active)
@@ -191,5 +191,5 @@ CREATE INDEX IF NOT EXISTS idx_subscription_history_tenant ON public.subscriptio
 
 -- Set trial end dates for existing tenants missing them
 UPDATE public.tenants
-SET trial_ends_at = created_at + INTERVAL '30 days', is_trial = true, subscription_plan = 'trial'
+SET trial_ends_at = created_at + INTERVAL '5 days', is_trial = true, subscription_plan = 'trial'
 WHERE trial_ends_at IS NULL AND created_at IS NOT NULL;
