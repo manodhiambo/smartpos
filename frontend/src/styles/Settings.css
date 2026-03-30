@@ -5,38 +5,42 @@
 
 .settings-tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 32px;
+  gap: 4px;
+  margin-bottom: 24px;
   border-bottom: 2px solid var(--border-color);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+.settings-tabs::-webkit-scrollbar { height: 0; }
 
 .settings-tabs .tab-btn {
-  padding: 14px 24px;
+  padding: 11px 18px;
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
   cursor: pointer;
   font-weight: 600;
+  font-size: 14px;
   color: var(--text-secondary);
-  transition: all 0.3s ease;
+  transition: color .2s;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.settings-tabs .tab-btn:hover {
-  color: var(--primary-color);
-}
-
+.settings-tabs .tab-btn:hover { color: var(--primary-color); }
 .settings-tabs .tab-btn.active {
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
 }
 
 .settings-content {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 28px;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
 }
@@ -494,22 +498,30 @@
 
 @media (max-width: 768px) {
   .settings-tabs {
-    flex-direction: column;
-    border-bottom: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 2px solid var(--border-color);
+    gap: 0;
   }
+  .settings-tabs::-webkit-scrollbar { height: 0; }
 
   .settings-tabs .tab-btn {
-    border-bottom: 1px solid var(--border-color);
-    border-left: 3px solid transparent;
-    justify-content: flex-start;
-  }
-
-  .settings-tabs .tab-btn.active {
-    border-bottom-color: var(--border-color);
-    border-left-color: var(--primary-color);
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 10px 12px;
+    flex-shrink: 0;
   }
 
   .settings-content {
-    padding: 24px;
+    padding: 16px 0;
+  }
+
+  .settings-section {
+    padding: 16px;
+  }
+
+  .receipt-settings-grid {
+    grid-template-columns: 1fr;
   }
 }
