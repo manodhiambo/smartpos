@@ -221,16 +221,16 @@ const ReportsPage = () => {
           )}
 
           {/* Financial Summary */}
-          {reportType === 'financial' && financialSummary && (
+          {reportType === 'financial' && financialSummary && financialSummary.revenue?.total !== undefined && (
             <>
               <div className="financial-summary-grid">
                 <div className="summary-card large">
                   <FaChartLine />
                   <div>
                     <span className="summary-label">Total Revenue</span>
-                    <span className="summary-value">{formatCurrency(financialSummary.revenue.total)}</span>
+                    <span className="summary-value">{formatCurrency(financialSummary.revenue?.total)}</span>
                     <span className="summary-subtext">
-                      {formatNumber(financialSummary.revenue.transactions)} transactions
+                      {formatNumber(financialSummary.revenue?.transactions)} transactions
                     </span>
                   </div>
                 </div>
@@ -239,9 +239,9 @@ const ReportsPage = () => {
                   <FaChartLine />
                   <div>
                     <span className="summary-label">Total Purchases</span>
-                    <span className="summary-value">{formatCurrency(financialSummary.purchases.total)}</span>
+                    <span className="summary-value">{formatCurrency(financialSummary.purchases?.total)}</span>
                     <span className="summary-subtext">
-                      Balance: {formatCurrency(financialSummary.purchases.balance)}
+                      Balance: {formatCurrency(financialSummary.purchases?.balance)}
                     </span>
                   </div>
                 </div>
@@ -250,9 +250,9 @@ const ReportsPage = () => {
                   <FaChartLine />
                   <div>
                     <span className="summary-label">Total Expenses</span>
-                    <span className="summary-value">{formatCurrency(financialSummary.expenses.total)}</span>
+                    <span className="summary-value">{formatCurrency(financialSummary.expenses?.total)}</span>
                     <span className="summary-subtext">
-                      {formatNumber(financialSummary.expenses.count)} expense entries
+                      {formatNumber(financialSummary.expenses?.count)} expense entries
                     </span>
                   </div>
                 </div>
@@ -261,9 +261,9 @@ const ReportsPage = () => {
                   <FaChartLine />
                   <div>
                     <span className="summary-label">Net Profit</span>
-                    <span className="summary-value">{formatCurrency(financialSummary.profit.net)}</span>
+                    <span className="summary-value">{formatCurrency(financialSummary.profit?.net)}</span>
                     <span className="summary-subtext">
-                      Margin: {financialSummary.profit.margin}%
+                      Margin: {financialSummary.profit?.margin ?? '0.0'}%
                     </span>
                   </div>
                 </div>
@@ -274,23 +274,23 @@ const ReportsPage = () => {
                 <div className="pl-statement">
                   <div className="pl-row">
                     <span>Revenue</span>
-                    <span className="amount">{formatCurrency(financialSummary.revenue.total)}</span>
+                    <span className="amount">{formatCurrency(financialSummary.revenue?.total)}</span>
                   </div>
                   <div className="pl-row">
                     <span>Cost of Goods Sold</span>
-                    <span className="amount negative">({formatCurrency(financialSummary.purchases.total)})</span>
+                    <span className="amount negative">({formatCurrency(financialSummary.purchases?.total)})</span>
                   </div>
                   <div className="pl-row subtotal">
                     <span><strong>Gross Profit</strong></span>
-                    <span className="amount"><strong>{formatCurrency(financialSummary.profit.gross)}</strong></span>
+                    <span className="amount"><strong>{formatCurrency(financialSummary.profit?.gross)}</strong></span>
                   </div>
                   <div className="pl-row">
                     <span>Operating Expenses</span>
-                    <span className="amount negative">({formatCurrency(financialSummary.expenses.total)})</span>
+                    <span className="amount negative">({formatCurrency(financialSummary.expenses?.total)})</span>
                   </div>
                   <div className="pl-row total">
                     <span><strong>Net Profit</strong></span>
-                    <span className="amount"><strong>{formatCurrency(financialSummary.profit.net)}</strong></span>
+                    <span className="amount"><strong>{formatCurrency(financialSummary.profit?.net)}</strong></span>
                   </div>
                 </div>
               </div>

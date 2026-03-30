@@ -56,9 +56,9 @@ const POSPage = () => {
   }, []);
 
   useEffect(() => {
-    if (searchTerm.length >= 2) {
+    if (searchTerm.trim().length >= 2) {
       searchProducts();
-    } else if (searchTerm.length === 0) {
+    } else if (searchTerm.trim().length === 0) {
       setProducts([]);
     }
   }, [searchTerm]);

@@ -122,10 +122,7 @@ exports.searchProducts = async (req, res, next) => {
     const { q, page = 1, limit = 20 } = req.query;
 
     if (!q || q.trim().length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: 'Search term must be at least 2 characters'
-      });
+      return res.json({ success: true, data: [], pagination: { total: 0, page: 1, limit, totalPages: 0 } });
     }
 
     const result = await Product.search(

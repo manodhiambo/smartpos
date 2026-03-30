@@ -163,47 +163,69 @@ exports.getFinancialSummary = async (req, res, next) => {
     const { tenantSchema } = req.user;
     const { startDate, endDate } = req.query;
 
-    const start = startDate ? new Date(startDate) : new Date();
-    start.setMonth(start.getMonth() - 1);
+    const start = startDate ? new Date(startDate) : (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d; })();
     start.setHours(0, 0, 0, 0);
 
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
-    // Get total revenue
-    const revenueResult = await queryTenant(
-      tenantSchema,
-      `SELECT
-        SUM(total_amount) as total_revenue,
-        COUNT(*) as total_transactions
-       FROM sales
-       WHERE created_at BETWEEN $1 AND $2
-       AND status = 'completed'`,
-      [start, end]
-    );
+    const [revenueResult, expensesResult, purchasesResult] = await Promise.all([
+      queryTenant(
+        tenantSchema,
+        `SELECT COALESCE(SUM(total_amount), 0) AS total_revenue,
+                COUNT(*) AS total_transactions
+         FROM sales
+         WHERE created_at BETWEEN $1 AND $2 AND status = 'completed'`,
+        [start, end]
+      ),
+      queryTenant(
+        tenantSchema,
+        `SELECT COALESCE(SUM(amount), 0) AS total_expenses, COUNT(*) AS total_count
+         FROM expenses
+         WHERE expense_date BETWEEN $1 AND $2`,
+        [start.toISOString().split('T')[0], end.toISOString().split('T')[0]]
+      ),
+      queryTenant(
+        tenantSchema,
+        `SELECT COALESCE(SUM(total_cost), 0) AS total_cost,
+                COALESCE(SUM(balance), 0) AS total_balance
+         FROM purchases
+         WHERE created_at BETWEEN $1 AND $2`,
+        [start, end]
+      )
+    ]);
 
-    // Get total expenses
-    const expensesResult = await queryTenant(
-      tenantSchema,
-      `SELECT
-        SUM(amount) as total_expenses,
-        COUNT(*) as total_count
-       FROM expenses
-       WHERE expense_date BETWEEN $1 AND $2`,
-      [start, end]
-    );
+    const revenueTotal = parseFloat(revenueResult.rows[0].total_revenue) || 0;
+    const revenueTransactions = parseInt(revenueResult.rows[0].total_transactions) || 0;
+    const expensesTotal = parseFloat(expensesResult.rows[0].total_expenses) || 0;
+    const expensesCount = parseInt(expensesResult.rows[0].total_count) || 0;
+    const purchasesTotal = parseFloat(purchasesResult.rows[0].total_cost) || 0;
+    const purchasesBalance = parseFloat(purchasesResult.rows[0].total_balance) || 0;
 
-    const revenue = parseFloat(revenueResult.rows[0].total_revenue) || 0;
-    const expenses = parseFloat(expensesResult.rows[0].total_expenses) || 0;
-    const profit = revenue - expenses;
+    const grossProfit = revenueTotal - purchasesTotal;
+    const netProfit = grossProfit - expensesTotal;
+    const margin = revenueTotal > 0 ? ((netProfit / revenueTotal) * 100).toFixed(1) : '0.0';
 
     res.json({
       success: true,
       data: {
-        revenue,
-        expenses,
-        profit,
-        transactions: parseInt(revenueResult.rows[0].total_transactions) || 0
+        revenue: {
+          total: revenueTotal,
+          transactions: revenueTransactions
+        },
+        purchases: {
+          total: purchasesTotal,
+          balance: purchasesBalance
+        },
+        expenses: {
+          total: expensesTotal,
+          count: expensesCount
+        },
+        profit: {
+          gross: grossProfit,
+          net: netProfit,
+          margin
+        }
       }
     });
   } catch (error) {
