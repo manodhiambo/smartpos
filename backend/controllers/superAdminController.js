@@ -149,21 +149,33 @@ exports.activateTenant = async (req, res) => {
   try {
     const { tenantId } = req.params;
 
-    await queryMain(
+    const result = await queryMain(
       `UPDATE public.tenants
       SET subscription_status = 'active', updated_at = NOW()
-      WHERE id = $1`,
+      WHERE id = $1
+      RETURNING id`,
       [tenantId]
     );
 
-    await subscriptionService.logSubscriptionHistory(
-      tenantId,
-      'subscription_activated',
-      null,
-      null,
-      'Activated by super admin',
-      req.user.username
-    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tenant not found'
+      });
+    }
+
+    try {
+      await subscriptionService.logSubscriptionHistory(
+        tenantId,
+        'subscription_activated',
+        null,
+        null,
+        'Activated by super admin',
+        req.user.username
+      );
+    } catch (logErr) {
+      console.warn('Subscription history log failed (non-fatal):', logErr.message);
+    }
 
     res.json({
       success: true,

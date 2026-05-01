@@ -178,13 +178,17 @@ class SubscriptionService {
       [tenantId]
     );
 
-    await this.logSubscriptionHistory(
-      tenantId,
-      'subscription_suspended',
-      null,
-      null,
-      reason
-    );
+    try {
+      await this.logSubscriptionHistory(
+        tenantId,
+        'subscription_suspended',
+        null,
+        null,
+        reason
+      );
+    } catch (logErr) {
+      console.warn('Subscription history log failed (non-fatal):', logErr.message);
+    }
   }
 
   /**

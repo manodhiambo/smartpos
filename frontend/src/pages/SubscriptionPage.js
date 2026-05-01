@@ -183,6 +183,24 @@ const SubscriptionPage = () => {
         </div>
       )}
 
+      {/* Payment Details Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', borderRadius: 12, padding: '20px 24px', marginBottom: 24, color: '#fff' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>M-Pesa Payment Details</h3>
+        <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>Paybill No.</div>
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 2 }}>522533</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>Account No.</div>
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 2 }}>8071524</div>
+          </div>
+        </div>
+        <p style={{ margin: '12px 0 0', fontSize: 13, opacity: 0.9 }}>
+          Use these details to pay via M-Pesa Paybill. After payment, contact support with your confirmation code for manual activation.
+        </p>
+      </div>
+
       {/* Pricing Overview */}
       <div className="plans-section">
         <h2>SmartPOS Pricing</h2>
@@ -366,7 +384,7 @@ const SubscriptionPage = () => {
               </form>
 
               <div className="payment-info">
-                <p><strong>How it works:</strong></p>
+                <p><strong>Pay via M-Pesa STK Push:</strong></p>
                 <ol>
                   <li>Enter your M-Pesa phone number</li>
                   <li>Click "Pay with M-Pesa"</li>
@@ -374,6 +392,23 @@ const SubscriptionPage = () => {
                   <li>Enter your M-Pesa PIN to complete</li>
                   <li>Your subscription will be activated immediately</li>
                 </ol>
+              </div>
+
+              <div className="payment-info" style={{ marginTop: 16, background: 'var(--bg-secondary, #f8f9fa)', borderRadius: 8, padding: '12px 16px' }}>
+                <p><strong>Or pay manually via Paybill:</strong></p>
+                <div style={{ display: 'flex', gap: 24, marginTop: 8, flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Paybill No.</span>
+                    <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>522533</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Account No.</span>
+                    <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>8071524</div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 12, marginTop: 8, color: 'var(--text-secondary)' }}>
+                  After payment, send the M-Pesa confirmation message to support for manual activation.
+                </p>
               </div>
             </div>
           </div>
