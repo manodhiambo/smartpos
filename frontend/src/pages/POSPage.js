@@ -11,6 +11,9 @@ import { printReceipt } from '../utils/printReceipt';
 import toast from 'react-hot-toast';
 import '../styles/POS.css';
 
+// Keystrokes faster than this (ms) are treated as scanner input, not keyboard
+const SCANNER_SPEED_MS = 50;
+
 const POSPage = () => {
   const { tenant } = useAuth();
 
@@ -19,6 +22,7 @@ const POSPage = () => {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [scanStatus, setScanStatus] = useState('ready'); // 'ready' | 'scanning' | 'error'
   const [loading, setLoading] = useState(false);
   const [customer, setCustomer] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -50,6 +54,14 @@ const POSPage = () => {
 
   const barcodeInputRef = useRef(null);
 
+  // Scanner state (refs to avoid stale closures in the global listener)
+  const scannerBuffer = useRef('');
+  const scannerLastKeyTime = useRef(0);
+  const scannerTimeoutRef = useRef(null);
+  const scannerProcessing = useRef(false);
+  // Always-fresh reference to the process function (updated every render)
+  const processBarcodeRef = useRef(null);
+
   useEffect(() => {
     barcodeInputRef.current?.focus();
     tenantAPI.getInfo().then(r => setTenantInfo(r.data.data)).catch(() => {});
@@ -79,6 +91,86 @@ const POSPage = () => {
     };
   }, []);
 
+  // ── Global barcode scanner listener ──────────────────────────────────────────
+  // Detects scanner input (fast keystrokes < SCANNER_SPEED_MS apart) at the
+  // document level so scanning works regardless of which element is focused.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const now = Date.now();
+      const gap = now - scannerLastKeyTime.current;
+      scannerLastKeyTime.current = now;
+
+      const active = document.activeElement;
+      const barcodeHasFocus = active === barcodeInputRef.current;
+
+      // While barcode input is focused, let native input + form-submit handle it
+      if (barcodeHasFocus) return;
+
+      // A "protected" field: a non-barcode input the user is intentionally typing in
+      const isProtectedField =
+        active &&
+        (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') &&
+        active.type !== 'hidden';
+
+      // Enter or Tab = barcode terminator
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        const buf = scannerBuffer.current.trim();
+        if (buf) {
+          e.preventDefault();
+          e.stopPropagation();
+          scannerBuffer.current = '';
+          clearTimeout(scannerTimeoutRef.current);
+          processBarcodeRef.current?.(buf);
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        scannerBuffer.current = '';
+        clearTimeout(scannerTimeoutRef.current);
+        setBarcode('');
+        return;
+      }
+
+      // Only capture printable characters
+      if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) return;
+
+      // Decide if this is scanner input: fast keystroke OR already buffering
+      const isScanner = gap < SCANNER_SPEED_MS || scannerBuffer.current.length > 0;
+
+      if (isScanner) {
+        // Prevent scanner chars from landing in the focused protected field
+        if (isProtectedField) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        scannerBuffer.current += e.key;
+        setBarcode(scannerBuffer.current); // Show progress in barcode input
+
+        // Fallback: process after 300 ms silence (scanners that omit Enter)
+        clearTimeout(scannerTimeoutRef.current);
+        scannerTimeoutRef.current = setTimeout(() => {
+          const buf = scannerBuffer.current.trim();
+          if (buf) {
+            scannerBuffer.current = '';
+            processBarcodeRef.current?.(buf);
+          }
+        }, 300);
+      }
+      // Slow manual typing while no protected field focused → focus barcode input
+      else if (!isProtectedField) {
+        barcodeInputRef.current?.focus();
+      }
+    };
+
+    // Capture phase so we intercept before other handlers
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      clearTimeout(scannerTimeoutRef.current);
+    };
+  }, []); // empty: uses refs and setBarcode (stable setter)
+
   const searchProducts = async () => {
     try {
       const response = await productsAPI.search(searchTerm);
@@ -97,18 +189,36 @@ const POSPage = () => {
     }
   };
 
-  const handleBarcodeSubmit = async (e) => {
-    e.preventDefault();
-    if (!barcode.trim()) return;
+  // Keep processBarcodeRef always pointing at the latest version so the
+  // global keydown listener (which has no deps) never holds a stale closure.
+  processBarcodeRef.current = async (rawCode) => {
+    const code = rawCode.trim();
+    if (!code || scannerProcessing.current) return;
+    scannerProcessing.current = true;
+    setScanStatus('scanning');
+    setBarcode(code);
     try {
-      const response = await productsAPI.getByBarcode(barcode.trim());
+      const response = await productsAPI.getByBarcode(code);
       addToCart(response.data.data);
+      setScanStatus('ready');
+    } catch {
+      setScanStatus('error');
+      toast.error(`Product not found: "${code}"`);
+      setTimeout(() => setScanStatus('ready'), 2000);
+    } finally {
       setBarcode('');
-      barcodeInputRef.current?.focus();
-    } catch (error) {
-      toast.error('Product not found');
-      setBarcode('');
+      scannerProcessing.current = false;
+      setTimeout(() => barcodeInputRef.current?.focus(), 30);
     }
+  };
+
+  // Manual barcode entry via keyboard (slow typing directly into the input)
+  const handleBarcodeSubmit = (e) => {
+    e.preventDefault();
+    const code = barcode.trim();
+    if (!code) return;
+    setBarcode('');
+    processBarcodeRef.current(code);
   };
 
   const addToCart = (product) => {
@@ -445,16 +555,34 @@ const POSPage = () => {
         <div className="pos-left">
           <div className="pos-section">
             <form onSubmit={handleBarcodeSubmit} className="barcode-form">
-              <div className="input-with-icon">
+              <div className="input-with-icon barcode-wrapper">
                 <FaBarcode className="input-icon" />
                 <input
                   ref={barcodeInputRef}
                   type="text"
-                  placeholder="Scan barcode or enter manually..."
+                  placeholder="Scan barcode or type and press Enter..."
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
                   className="barcode-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                 />
+                <span
+                  className={`scan-status-dot scan-status-${scanStatus}`}
+                  title={
+                    scanStatus === 'ready' ? 'Ready to scan' :
+                    scanStatus === 'scanning' ? 'Processing scan...' :
+                    'Product not found'
+                  }
+                />
+              </div>
+              <div className="barcode-hint">
+                {scanStatus === 'scanning'
+                  ? 'Looking up product...'
+                  : scanStatus === 'error'
+                  ? 'Product not found — scan again or search by name'
+                  : 'Scanner active — scan any time, even without clicking here'}
               </div>
             </form>
           </div>
