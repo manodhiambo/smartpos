@@ -24,6 +24,12 @@ async function ensureAdjustmentsTable(tenantSchema) {
     reference VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Patch columns that may be absent in tables created by older schema versions
+  await queryMain(`ALTER TABLE "${tenantSchema}".stock_adjustments ADD COLUMN IF NOT EXISTS adjusted_by INTEGER`);
+  await queryMain(`ALTER TABLE "${tenantSchema}".stock_adjustments ADD COLUMN IF NOT EXISTS reference VARCHAR(50)`);
+  await queryMain(`ALTER TABLE "${tenantSchema}".stock_adjustments ADD COLUMN IF NOT EXISTS cost_impact DECIMAL(10,2) DEFAULT 0`);
+  await queryMain(`ALTER TABLE "${tenantSchema}".stock_adjustments ADD COLUMN IF NOT EXISTS product_id INTEGER`);
+  await queryMain(`ALTER TABLE "${tenantSchema}".stock_adjustments ADD COLUMN IF NOT EXISTS product_name VARCHAR(255)`);
 }
 
 /**

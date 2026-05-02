@@ -102,6 +102,28 @@ BEGIN
     EXECUTE format('ALTER TABLE %I.expenses ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT ''approved''', t.tenant_schema);
     EXECUTE format('ALTER TABLE %I.expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP', t.tenant_schema);
 
+    -- ── stock_adjustments ─────────────────────────────────────────────────────
+    EXECUTE format('
+      CREATE TABLE IF NOT EXISTS %I.stock_adjustments (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER,
+        product_name VARCHAR(255),
+        adjustment_type VARCHAR(50) NOT NULL,
+        quantity_before DECIMAL(10,3) NOT NULL,
+        quantity_adjusted DECIMAL(10,3) NOT NULL,
+        quantity_after DECIMAL(10,3) NOT NULL,
+        cost_impact DECIMAL(10,2) DEFAULT 0,
+        reason TEXT,
+        adjusted_by INTEGER,
+        reference VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )', t.tenant_schema);
+    EXECUTE format('ALTER TABLE %I.stock_adjustments ADD COLUMN IF NOT EXISTS adjusted_by INTEGER', t.tenant_schema);
+    EXECUTE format('ALTER TABLE %I.stock_adjustments ADD COLUMN IF NOT EXISTS reference VARCHAR(50)', t.tenant_schema);
+    EXECUTE format('ALTER TABLE %I.stock_adjustments ADD COLUMN IF NOT EXISTS cost_impact DECIMAL(10,2) DEFAULT 0', t.tenant_schema);
+    EXECUTE format('ALTER TABLE %I.stock_adjustments ADD COLUMN IF NOT EXISTS product_id INTEGER', t.tenant_schema);
+    EXECUTE format('ALTER TABLE %I.stock_adjustments ADD COLUMN IF NOT EXISTS product_name VARCHAR(255)', t.tenant_schema);
+
     -- ── users VIEW ────────────────────────────────────────────────────────────
     -- Allows models to JOIN users on cashier_id/user_id against public.tenant_users
     EXECUTE format(
