@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { salesAPI } from '../services/api';
-import { FaSearch, FaEye, FaFileDownload, FaFilter, FaReceipt } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import { FaSearch, FaEye, FaFileDownload, FaFilter, FaReceipt, FaUndo } from 'react-icons/fa';
 import { formatCurrency, formatDateTime, getDateRange } from '../utils/helpers';
 import toast from 'react-hot-toast';
 import '../styles/Sales.css';
 
 const SalesPage = () => {
+  const navigate = useNavigate();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -218,13 +220,25 @@ const SalesPage = () => {
                         )}
                       </td>
                       <td>
-                        <button
-                          className="btn-icon btn-icon-primary"
-                          onClick={() => handleViewDetails(sale.id)}
-                          title="View Details"
-                        >
-                          <FaEye />
-                        </button>
+                        <div className="action-buttons">
+                          <button
+                            className="btn-icon btn-icon-primary"
+                            onClick={() => handleViewDetails(sale.id)}
+                            title="View Details"
+                          >
+                            <FaEye />
+                          </button>
+                          {sale.status === 'completed' && (
+                            <button
+                              className="btn-icon btn-icon-warning"
+                              onClick={() => navigate(`/returns?receipt=${sale.receipt_no}`)}
+                              title="Process Return"
+                              style={{ color: '#D97706' }}
+                            >
+                              <FaUndo />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

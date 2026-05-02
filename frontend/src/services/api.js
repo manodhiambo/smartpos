@@ -174,4 +174,24 @@ export const superAdminAPI = {
   deletePlan: (planId) => api.delete(`/super-admin/plans/${planId}`),
 };
 
+export const returnsAPI = {
+  create: (data) => api.post('/returns', data),
+  getAll: (params) => api.get('/returns', { params }),
+  getById: (id) => api.get(`/returns/${id}`),
+};
+
+export const shiftsAPI = {
+  open: (data) => api.post('/shifts/open', data),
+  close: (data) => api.post('/shifts/close', data),
+  getCurrent: () => api.get('/shifts/current'),
+  getAll: (params) => api.get('/shifts', { params }),
+  getSummary: (id) => api.get(`/shifts/${id}/summary`),
+};
+
+export const stockAdjustmentsAPI = {
+  create: (data) => api.post('/stock-adjustments', data),
+  getAll: (params) => api.get('/stock-adjustments', { params }),
+  getByProduct: (productId) => api.get(`/stock-adjustments/product/${productId}`),
+};
+
 export default api;

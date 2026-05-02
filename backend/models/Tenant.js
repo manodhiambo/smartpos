@@ -381,6 +381,78 @@ class Tenant {
       )
     `);
 
+    // shifts
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".shifts (
+        id SERIAL PRIMARY KEY,
+        shift_no VARCHAR(30) UNIQUE,
+        opened_by INTEGER,
+        closed_by INTEGER,
+        opening_float DECIMAL(10,2) DEFAULT 0,
+        closing_cash DECIMAL(10,2),
+        expected_cash DECIMAL(10,2),
+        cash_variance DECIMAL(10,2),
+        total_sales DECIMAL(10,2) DEFAULT 0,
+        total_transactions INTEGER DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'open',
+        notes TEXT,
+        opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closed_at TIMESTAMP
+      )
+    `);
+
+    // returns
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".returns (
+        id SERIAL PRIMARY KEY,
+        return_no VARCHAR(30) UNIQUE,
+        original_sale_id INTEGER,
+        original_receipt_no VARCHAR(50),
+        processed_by INTEGER,
+        customer_id INTEGER,
+        reason TEXT NOT NULL,
+        refund_method VARCHAR(50) DEFAULT 'cash',
+        total_refund DECIMAL(10,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'completed',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // return_items
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".return_items (
+        id SERIAL PRIMARY KEY,
+        return_id INTEGER REFERENCES "${tenantSchema}".returns(id) ON DELETE CASCADE,
+        product_id INTEGER,
+        product_name VARCHAR(255) NOT NULL,
+        quantity DECIMAL(10,2) NOT NULL,
+        unit_price DECIMAL(10,2) NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL,
+        restock BOOLEAN DEFAULT true,
+        condition VARCHAR(20) DEFAULT 'good',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // stock_adjustments
+    await queryMain(`
+      CREATE TABLE IF NOT EXISTS "${tenantSchema}".stock_adjustments (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER,
+        product_name VARCHAR(255) NOT NULL,
+        adjustment_type VARCHAR(50) NOT NULL,
+        quantity_before DECIMAL(10,3) NOT NULL,
+        quantity_adjusted DECIMAL(10,3) NOT NULL,
+        quantity_after DECIMAL(10,3) NOT NULL,
+        cost_impact DECIMAL(10,2) DEFAULT 0,
+        reason TEXT,
+        adjusted_by INTEGER,
+        reference VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // users VIEW — lets models JOIN users on cashier_id/user_id
     // Maps to public.tenant_users filtered by this tenant
     if (tenantId) {

@@ -23,6 +23,9 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import SubscriptionPage from './pages/SubscriptionPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import ReturnsPage from './pages/ReturnsPage';
+import ShiftsPage from './pages/ShiftsPage';
+import StockAdjustmentsPage from './pages/StockAdjustmentsPage';
 
 // Super Admin Route wrapper
 const SuperAdminRoute = ({ children }) => {
@@ -99,6 +102,24 @@ function App() {
             <Route path="/customers" element={
               <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
                 <Layout><CustomersPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/returns" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
+                <Layout><ReturnsPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/shifts" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']}>
+                <Layout><ShiftsPage /></Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/stock-adjustments" element={
+              <ProtectedRoute allowedRoles={['admin', 'manager', 'storekeeper']}>
+                <Layout><StockAdjustmentsPage /></Layout>
               </ProtectedRoute>
             } />
 

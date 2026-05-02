@@ -13,6 +13,9 @@ const dashboardRoutes = require('./dashboardRoutes');
 const userRoutes = require('./userRoutes');
 const tenantRoutes = require('./tenantRoutes');
 const paymentRoutes = require('./paymentRoutes');
+const returnsRoutes = require('./returnsRoutes');
+const shiftsRoutes = require('./shiftsRoutes');
+const stockAdjustmentsRoutes = require('./stockAdjustmentsRoutes');
 
 // Check if subscription middleware exists
 let checkSubscription;
@@ -59,5 +62,8 @@ router.use('/expenses', checkSubscription, expenseRoutes);
 router.use('/dashboard', checkSubscription, dashboardRoutes);
 router.use('/users', checkSubscription, userRoutes);
 router.use('/tenant', checkSubscription, tenantRoutes);
+router.use('/returns', checkSubscription, returnsRoutes);
+router.use('/shifts', checkSubscription, shiftsRoutes);
+router.use('/stock-adjustments', checkSubscription, stockAdjustmentsRoutes);
 
 module.exports = router;

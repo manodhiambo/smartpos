@@ -5,15 +5,18 @@ import { useNotifications } from '../../context/NotificationsContext';
 import {
   FaTachometerAlt, FaCashRegister, FaBoxes, FaShoppingBag,
   FaTruck, FaUsers, FaMoneyBillWave, FaChartBar, FaUsersCog,
-  FaCog, FaCreditCard, FaStore, FaBars
+  FaCog, FaCreditCard, FaStore, FaBars, FaUndo, FaClock, FaClipboardList
 } from 'react-icons/fa';
 
 const menuItems = [
   { path: '/dashboard',    icon: <FaTachometerAlt />, label: 'Dashboard',    roles: ['admin','manager','cashier','storekeeper'] },
   { path: '/pos',          icon: <FaCashRegister />,  label: 'POS',          roles: ['admin','manager','cashier'] },
   { path: '/products',     icon: <FaBoxes />,          label: 'Products',     roles: ['admin','manager','storekeeper'] },
-  { path: '/sales',        icon: <FaShoppingBag />,   label: 'Sales',        roles: ['admin','manager','cashier'] },
-  { path: '/purchases',    icon: <FaTruck />,          label: 'Purchases',    roles: ['admin','manager','storekeeper'] },
+  { path: '/sales',             icon: <FaShoppingBag />,    label: 'Sales',        roles: ['admin','manager','cashier'] },
+  { path: '/returns',           icon: <FaUndo />,           label: 'Returns',      roles: ['admin','manager','cashier'] },
+  { path: '/shifts',            icon: <FaClock />,           label: 'Shifts',       roles: ['admin','manager','cashier'] },
+  { path: '/stock-adjustments', icon: <FaClipboardList />,  label: 'Stock Adjust', roles: ['admin','manager','storekeeper'] },
+  { path: '/purchases',         icon: <FaTruck />,           label: 'Purchases',    roles: ['admin','manager','storekeeper'] },
   { path: '/suppliers',    icon: <FaTruck />,          label: 'Suppliers',    roles: ['admin','manager','storekeeper'] },
   { path: '/customers',    icon: <FaUsers />,          label: 'Customers',    roles: ['admin','manager','cashier'] },
   { path: '/expenses',     icon: <FaMoneyBillWave />,  label: 'Expenses',     roles: ['admin','manager'] },

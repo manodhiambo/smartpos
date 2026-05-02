@@ -96,6 +96,14 @@ exports.getUserById = async (req, res, next) => {
       });
     }
 
+    // Tenant ownership check — prevent cross-tenant data access
+    if (user.tenant_id !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
     res.json({
       success: true,
       data: {
@@ -128,6 +136,23 @@ exports.updateUser = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'You do not have permission to update users'
+      });
+    }
+
+    // Fetch the user first to verify tenant ownership
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Tenant ownership check — prevent cross-tenant updates
+    if (existingUser.tenant_id !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
       });
     }
 
@@ -193,6 +218,15 @@ exports.deleteUser = async (req, res, next) => {
       });
     }
 
+    // Tenant ownership check — prevent cross-tenant deletion
+    const userToDelete = await User.findById(id);
+    if (userToDelete && userToDelete.tenant_id !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
     const user = await User.delete(id);
 
     if (!user) {
@@ -233,6 +267,15 @@ exports.resetUserPassword = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Password must be at least 8 characters'
+      });
+    }
+
+    // Tenant ownership check — prevent cross-tenant password resets
+    const userToReset = await User.findById(id);
+    if (userToReset && userToReset.tenant_id !== req.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
       });
     }
 
