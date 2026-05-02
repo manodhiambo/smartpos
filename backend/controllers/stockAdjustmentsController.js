@@ -65,10 +65,10 @@ exports.createAdjustment = async (req, res, next) => {
     }
 
     const parsedQty = parseFloat(quantityAdjusted);
-    if (isNaN(parsedQty) || parsedQty <= 0) {
+    if (isNaN(parsedQty) || parsedQty === 0) {
       return res.status(400).json({
         success: false,
-        message: 'quantityAdjusted must be a positive number'
+        message: 'quantityAdjusted must be a non-zero number'
       });
     }
 
@@ -89,14 +89,13 @@ exports.createAdjustment = async (req, res, next) => {
     const quantityBefore = parseFloat(product.stock_quantity);
     const costPrice = parseFloat(product.cost_price) || 0;
 
-    // Determine the signed delta
+    // Determine the signed delta.
+    // For unambiguous reduce types always reduce; for bidirectional types honour the sign sent.
     let delta;
     if (NEGATIVE_ADJUSTMENT_TYPES.has(adjustmentType)) {
-      // quantityAdjusted is given as a positive number; apply as a reduction
-      delta = -parsedQty;
+      delta = -Math.abs(parsedQty);
     } else {
-      // 'found' or 'count_correction' — increase stock
-      delta = parsedQty;
+      delta = parsedQty; // negative value = reduce, positive = increase
     }
 
     const quantityAfter = quantityBefore + delta;
@@ -109,7 +108,7 @@ exports.createAdjustment = async (req, res, next) => {
       });
     }
 
-    const costImpact = Math.abs(parsedQty) * costPrice;
+    const costImpact = Math.abs(delta) * costPrice;
     const reference = await generateReference(tenantSchema);
 
     // Update the product stock
@@ -133,7 +132,7 @@ exports.createAdjustment = async (req, res, next) => {
         product.name,
         adjustmentType,
         quantityBefore,
-        parsedQty,   // always stored as a positive magnitude
+        delta,   // signed: negative for reductions, positive for increases
         quantityAfter,
         costImpact,
         reason || null,
@@ -161,7 +160,8 @@ exports.createAdjustment = async (req, res, next) => {
 exports.getAllAdjustments = async (req, res, next) => {
   try {
     const { tenantSchema } = req.user;
-    const { page = 1, limit = 20, adjustmentType, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, adjustmentType: _at, type: _t, startDate, endDate } = req.query;
+    const adjustmentType = _at || _t;
 
     await ensureAdjustmentsTable(tenantSchema);
 
@@ -192,7 +192,7 @@ exports.getAllAdjustments = async (req, res, next) => {
       `SELECT sa.*,
               u.full_name AS adjusted_by_name
        FROM stock_adjustments sa
-       LEFT JOIN users u ON sa.adjusted_by = u.id
+       LEFT JOIN public.tenant_users u ON sa.adjusted_by = u.id
        ${whereClause}
        ORDER BY sa.created_at DESC
        LIMIT $${paramIndex++} OFFSET $${paramIndex++}`,
@@ -254,7 +254,7 @@ exports.getAdjustmentsByProduct = async (req, res, next) => {
       `SELECT sa.*,
               u.full_name AS adjusted_by_name
        FROM stock_adjustments sa
-       LEFT JOIN users u ON sa.adjusted_by = u.id
+       LEFT JOIN public.tenant_users u ON sa.adjusted_by = u.id
        WHERE sa.product_id = $1
        ORDER BY sa.created_at DESC
        LIMIT $2 OFFSET $3`,

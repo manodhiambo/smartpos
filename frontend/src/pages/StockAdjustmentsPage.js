@@ -174,9 +174,9 @@ const StockAdjustmentsPage = () => {
     setSubmitting(true);
     try {
       await stockAdjustmentsAPI.create({
-        product_id: selectedProduct.id,
-        adjustment_type: adjustmentType,
-        quantity_adjusted: quantityAdjusted,
+        productId: selectedProduct.id,
+        adjustmentType,
+        quantityAdjusted,
         reason: reason.trim(),
       });
       toast.success('Stock adjustment recorded successfully');
